@@ -7,6 +7,8 @@ let enhancedDataUrl = null;
 let originalDataUrl = null;
 let config = null;
 let creditText = "";
+let places = [];
+let selectedPlaceId = null;
 
 // DOM
 const canvas = document.getElementById("canvas");
@@ -24,10 +26,13 @@ const btnSave = document.getElementById("btn-save");
 const btnFolder = document.getElementById("btn-folder");
 const btnRotateCCW = document.getElementById("btn-rotate-ccw");
 const btnRotateCW = document.getElementById("btn-rotate-cw");
+const btnCentre = document.getElementById("btn-centre");
 const filenameInput = document.getElementById("filename-input");
 const creditInput = document.getElementById("credit-input");
 const licenceSelect = document.getElementById("licence-select");
 const btnApplyCredit = document.getElementById("btn-apply-credit");
+const placeInput = document.getElementById("place-input");
+const placesList = document.getElementById("places-list");
 
 // Init
 async function init() {
@@ -35,6 +40,25 @@ async function init() {
   resizeCanvas();
   updateCropOverlay();
   draw();
+
+  try {
+    const result = await pywebview.api.get_places();
+    if (result && result.places) {
+      places = result.places;
+      populatePlaces();
+    }
+  } catch (e) {
+    // Supabase is optional — silently ignore
+  }
+}
+
+function populatePlaces() {
+  placesList.innerHTML = "";
+  for (const place of places) {
+    const opt = document.createElement("option");
+    opt.value = place.name;
+    placesList.appendChild(opt);
+  }
 }
 
 function resizeCanvas() {
@@ -131,8 +155,10 @@ function enableButtons() {
   btnZoomOut.disabled = false;
   btnRotateCCW.disabled = false;
   btnRotateCW.disabled = false;
+  btnCentre.disabled = false;
   btnEnhance.disabled = false;
   btnSave.disabled = false;
+  placeInput.disabled = false;
   filenameInput.disabled = false;
   creditInput.disabled = false;
   licenceSelect.disabled = false;
@@ -159,6 +185,8 @@ btnOpen.addEventListener("click", async () => {
   creditText = "";
   creditInput.value = "";
   licenceSelect.selectedIndex = 0;
+  placeInput.value = "";
+  selectedPlaceId = null;
   btnEnhance.textContent = "Auto Enhance: OFF";
   btnEnhance.classList.remove("active");
 
@@ -217,6 +245,12 @@ btnApplyCredit.addEventListener("click", () => {
   draw();
 });
 
+placeInput.addEventListener("input", () => {
+  const val = placeInput.value.trim();
+  const match = places.find((p) => p.name === val);
+  selectedPlaceId = match ? match.id : null;
+});
+
 btnSave.addEventListener("click", async () => {
   if (!img) return;
   setStatus("Saving...");
@@ -228,10 +262,15 @@ btnSave.addEventListener("click", async () => {
     enhanced,
     filenameInput.value.trim(),
     imgTransform.rotation,
-    creditText
+    creditText,
+    selectedPlaceId
   );
   if (result.error) {
     setStatus("Save error: " + result.error);
+  } else if (result.supabase_error) {
+    setStatus("Saved: " + result.path + " (upload failed: " + result.supabase_error + ")");
+  } else if (result.uploaded) {
+    setStatus("Saved & uploaded: " + result.path);
   } else {
     setStatus("Saved: " + result.path);
   }
@@ -256,6 +295,39 @@ btnRotateCCW.addEventListener("click", () => {
 btnRotateCW.addEventListener("click", () => {
   if (!img) return;
   imgTransform.rotation += 1;
+  draw();
+});
+
+btnCentre.addEventListener("click", () => {
+  if (!img) return;
+  fitImageToCrop();
+  draw();
+});
+
+// Arrow keys for fine nudge (1px per press)
+window.addEventListener("keydown", (e) => {
+  if (!img) return;
+  // Don't capture arrows when typing in an input/select
+  const tag = document.activeElement.tagName;
+  if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+  const NUDGE = 1;
+  switch (e.key) {
+    case "ArrowLeft":
+      imgTransform.x -= NUDGE;
+      break;
+    case "ArrowRight":
+      imgTransform.x += NUDGE;
+      break;
+    case "ArrowUp":
+      imgTransform.y -= NUDGE;
+      break;
+    case "ArrowDown":
+      imgTransform.y += NUDGE;
+      break;
+    default:
+      return;
+  }
+  e.preventDefault();
   draw();
 });
 

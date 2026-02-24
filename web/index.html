@@ -13,18 +13,23 @@
     <button id="btn-zoom-out" disabled>−</button>
     <button id="btn-rotate-ccw" disabled title="Rotate 1° counter-clockwise">↺</button>
     <button id="btn-rotate-cw" disabled title="Rotate 1° clockwise">↻</button>
+    <button id="btn-centre" disabled title="Re-centre image">Centre</button>
     <button id="btn-enhance" disabled>Auto Enhance: OFF</button>
     <div class="toolbar-group">
       <input id="credit-input" type="text" placeholder="Photo credit" disabled>
       <select id="licence-select" disabled>
         <option value="CC BY 2.0">CC BY 2.0</option>
-        <option value="CC BY 3.0">CC BY 2.0</option>
-        <option value="CC BY 4.0">CC BY 2.0</option>
+        <option value="CC BY 3.0">CC BY 3.0</option>
+        <option value="CC BY 4.0">CC BY 4.0</option>
         <option value="CC BY-SA 2.0">CC BY-SA 2.0</option>
         <option value="CC BY-SA 3.0">CC BY-SA 3.0</option>
         <option value="CC BY-SA 4.0">CC BY-SA 4.0</option>
       </select>
       <button id="btn-apply-credit" disabled>Apply Credit</button>
+    </div>
+    <div class="toolbar-group">
+      <input id="place-input" type="text" list="places-list" placeholder="Select place..." disabled>
+      <datalist id="places-list"></datalist>
     </div>
     <input id="filename-input" type="text" placeholder="filename" disabled>
     <button id="btn-save" disabled>Save</button>

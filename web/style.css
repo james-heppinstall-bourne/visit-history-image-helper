@@ -85,6 +85,20 @@ body {
   opacity: 0.4;
 }
 
+#place-input {
+  padding: 6px 10px;
+  border: 1px solid #0f3460;
+  border-radius: 4px;
+  background: #0f3460;
+  color: #eee;
+  font-size: 13px;
+  min-width: 160px;
+}
+
+#place-input:disabled {
+  opacity: 0.4;
+}
+
 #filename-input {
   padding: 6px 10px;
   border: 1px solid #0f3460;

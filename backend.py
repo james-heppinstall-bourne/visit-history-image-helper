@@ -7,6 +7,12 @@ import time
 import webview
 from PIL import Image, ImageDraw, ImageEnhance, ImageFont, ImageOps
 
+try:
+    from supabase import create_client, Client as SupabaseClient
+except ImportError:
+    create_client = None
+    SupabaseClient = None
+
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 DEFAULT_CONFIG = {
@@ -14,13 +20,18 @@ DEFAULT_CONFIG = {
     "crop_height": 600,
     "output_folder": "./output",
     "webp_quality": 80,
+    "supabase_url": "",
+    "supabase_key": "",
 }
 
 
 def load_config():
     if os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH, "r") as f:
-            return json.load(f)
+            stored = json.load(f)
+        merged = dict(DEFAULT_CONFIG)
+        merged.update(stored)
+        return merged
     save_config(DEFAULT_CONFIG)
     return dict(DEFAULT_CONFIG)
 
@@ -35,6 +46,7 @@ class Api:
         self._window = None
         self._current_image_path = None
         self._original_image = None
+        self._supabase = None
 
     def set_window(self, window):
         self._window = window
@@ -102,7 +114,63 @@ class Api:
             "height": self._original_image.height,
         }
 
-    def save_crop(self, canvas_width, canvas_height, crop_box, img_transform, enhanced, filename="", rotation=0, credit=""):
+    def _get_supabase_client(self):
+        if self._supabase is not None:
+            return self._supabase
+        if create_client is None:
+            return None
+        cfg = load_config()
+        url = cfg.get("supabase_url", "")
+        key = cfg.get("supabase_key", "")
+        if not url or not key:
+            return None
+        self._supabase = create_client(url, key)
+        return self._supabase
+
+    def get_places(self):
+        try:
+            client = self._get_supabase_client()
+            if client is None:
+                return {"places": []}
+            PAGE_SIZE = 1000
+            all_places = []
+            offset = 0
+            while True:
+                result = (
+                    client.table("places")
+                    .select("id, name")
+                    .order("name")
+                    .range(offset, offset + PAGE_SIZE - 1)
+                    .execute()
+                )
+                rows = result.data
+                all_places.extend({"id": r["id"], "name": r["name"]} for r in rows)
+                if len(rows) < PAGE_SIZE:
+                    break
+                offset += PAGE_SIZE
+            return {"places": all_places}
+        except Exception as e:
+            return {"places": [], "error": str(e)}
+
+    def _upload_to_supabase(self, file_path, place_id):
+        try:
+            client = self._get_supabase_client()
+            if client is None:
+                return {"error": "Supabase not configured"}
+            filename = os.path.basename(file_path)
+            with open(file_path, "rb") as f:
+                file_bytes = f.read()
+            client.storage.from_("place-images").upload(
+                filename,
+                file_bytes,
+                file_options={"content-type": "image/webp", "upsert": "true"},
+            )
+            client.table("places").update({"image_path": filename}).eq("id", place_id).execute()
+            return {"success": True}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def save_crop(self, canvas_width, canvas_height, crop_box, img_transform, enhanced, filename="", rotation=0, credit="", place_id=None):
         """
         Save the cropped region from the original image.
 
@@ -204,7 +272,16 @@ class Api:
                 cropped = cropped.convert("RGB")
             cropped.save(out_path, "WEBP", quality=cfg["webp_quality"])
 
-            return {"success": True, "path": out_path}
+            result = {"success": True, "path": out_path}
+
+            if place_id is not None:
+                upload_result = self._upload_to_supabase(out_path, place_id)
+                if upload_result.get("error"):
+                    result["supabase_error"] = upload_result["error"]
+                else:
+                    result["uploaded"] = True
+
+            return result
         except Exception as e:
             return {"error": str(e)}
 
