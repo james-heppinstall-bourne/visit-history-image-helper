@@ -158,8 +158,6 @@ function enableButtons() {
   btnCentre.disabled = false;
   btnEnhance.disabled = false;
   btnSave.disabled = false;
-  placeInput.disabled = false;
-  filenameInput.disabled = false;
   creditInput.disabled = false;
   licenceSelect.disabled = false;
   btnApplyCredit.disabled = false;
@@ -249,6 +247,9 @@ placeInput.addEventListener("input", () => {
   const val = placeInput.value.trim();
   const match = places.find((p) => p.name === val);
   selectedPlaceId = match ? match.id : null;
+  if (match) {
+    filenameInput.value = match.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  }
 });
 
 btnSave.addEventListener("click", async () => {
