@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visit History Image Helper</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="home-screen">
+    <h1>Visit History Image Helper</h1>
+    <div id="home-buttons">
+      <button class="home-btn" id="btn-image-helper">
+        <span class="home-btn-icon">&#x1f5bc;</span>
+        <span class="home-btn-label">Image Helper</span>
+        <span class="home-btn-desc">Crop, enhance, and watermark images</span>
+      </button>
+      <button class="home-btn" id="btn-log-viewer">
+        <span class="home-btn-icon">&#x1f4cb;</span>
+        <span class="home-btn-label">Log Viewer</span>
+        <span class="home-btn-desc">Browse and search visit logs</span>
+      </button>
+    </div>
+  </div>
+  <script>
+    function navigate(page) {
+      window.location.href = page;
+    }
+    document.getElementById("btn-image-helper").addEventListener("click", () => navigate("index.html"));
+    document.getElementById("btn-log-viewer").addEventListener("click", () => navigate("log-viewer.html"));
+  </script>
+</body>
+</html>

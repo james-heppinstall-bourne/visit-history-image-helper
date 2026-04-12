@@ -285,6 +285,144 @@ class Api:
         except Exception as e:
             return {"error": str(e)}
 
+    def get_auth_users(self):
+        try:
+            client = self._get_supabase_client()
+            if client is None:
+                return {"users": [], "error": "Supabase not configured"}
+            all_users = []
+            page = 1
+            per_page = 1000
+            while True:
+                res = client.auth.admin.list_users(page=page, per_page=per_page)
+                users = res if isinstance(res, list) else getattr(res, "users", res)
+                if not users:
+                    break
+                for u in users:
+                    uid = u.id if hasattr(u, "id") else u.get("id")
+                    email = u.email if hasattr(u, "email") else u.get("email", "")
+                    created = u.created_at if hasattr(u, "created_at") else u.get("created_at", "")
+                    meta = u.user_metadata if hasattr(u, "user_metadata") else u.get("user_metadata", {})
+                    display = ""
+                    if meta:
+                        display = meta.get("display_name", "") or meta.get("full_name", "") or meta.get("name", "")
+                    all_users.append({
+                        "id": str(uid),
+                        "email": email or "",
+                        "display_name": display,
+                        "created_at": str(created) if created else "",
+                    })
+                if len(users) < per_page:
+                    break
+                page += 1
+            all_users.sort(key=lambda u: u["created_at"], reverse=True)
+            return {"users": all_users}
+        except Exception as e:
+            return {"users": [], "error": str(e)}
+
+    def get_logs_for_user(self, user_id, page=1, page_size=100):
+        try:
+            client = self._get_supabase_client()
+            if client is None:
+                return {"logs": [], "error": "Supabase not configured"}
+            offset = (page - 1) * page_size
+            result = (
+                client.table("app_logs")
+                .select("id, created_at, level, category, message, context, exception_type, exception_message, stack_trace, device_platform, device_version, app_version")
+                .eq("user_id", user_id)
+                .order("created_at", desc=True)
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
+            return {"logs": result.data, "page": page, "page_size": page_size}
+        except Exception as e:
+            return {"logs": [], "error": str(e)}
+
+    def get_all_logs(self, page=1, page_size=100, level=""):
+        try:
+            client = self._get_supabase_client()
+            if client is None:
+                return {"logs": [], "error": "Supabase not configured"}
+            offset = (page - 1) * page_size
+            query = (
+                client.table("app_logs")
+                .select("id, created_at, user_id, level, category, message, context, exception_type, exception_message, stack_trace, device_platform, device_version, app_version")
+            )
+            if level:
+                query = query.eq("level", level)
+            result = (
+                query
+                .order("created_at", desc=True)
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
+            return {"logs": result.data, "page": page, "page_size": page_size}
+        except Exception as e:
+            return {"logs": [], "error": str(e)}
+
+    def get_visits(self, page=1, page_size=50):
+        try:
+            client = self._get_supabase_client()
+            if client is None:
+                return {"visits": [], "error": "Supabase not configured"}
+            offset = (page - 1) * page_size
+            result = (
+                client.table("visits")
+                .select("id, user_id, place_id, visited_at, notes, rating, is_favorite, nhle_list_entry, nhle_name, nhle_grade, cadw_fid, cadw_name, cadw_grade, public_comments")
+                .order("visited_at", desc=True)
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
+            visits = result.data or []
+
+            # Fetch place names for visits that have a place_id
+            place_ids = list({v["place_id"] for v in visits if v.get("place_id")})
+            place_map = {}
+            if place_ids:
+                places_result = (
+                    client.table("places")
+                    .select("id, name")
+                    .in_("id", place_ids)
+                    .execute()
+                )
+                for p in (places_result.data or []):
+                    place_map[p["id"]] = p["name"]
+
+            # Fetch photos for all visits in this page
+            visit_ids = [v["id"] for v in visits]
+            photo_map = {}
+            if visit_ids:
+                photos_result = (
+                    client.table("visit_photos")
+                    .select("id, visit_id, storage_path, comment, is_public")
+                    .in_("visit_id", visit_ids)
+                    .order("created_at")
+                    .execute()
+                )
+                for photo in (photos_result.data or []):
+                    vid = photo["visit_id"]
+                    if vid not in photo_map:
+                        photo_map[vid] = []
+                    photo_map[vid].append(photo)
+
+            # Generate signed URLs for photos (bucket is private)
+            for v in visits:
+                v["place_name"] = place_map.get(v.get("place_id"), "")
+                photos = photo_map.get(v["id"], [])
+                for photo in photos:
+                    try:
+                        signed = client.storage.from_("visit-photos").create_signed_url(
+                            photo["storage_path"], 3600
+                        )
+                        photo["url"] = signed.get("signedURL", "") or signed.get("signedUrl", "")
+                    except Exception:
+                        photo["url"] = ""
+                v["photos"] = photos
+
+            return {"visits": visits, "page": page, "page_size": page_size}
+        except Exception as e:
+            return {"visits": [], "error": str(e)}
+
     def choose_output_folder(self):
         result = self._window.create_file_dialog(webview.FOLDER_DIALOG)
         if result and len(result) > 0:

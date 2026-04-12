@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Log Viewer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="toolbar">
+    <button id="btn-back">Back</button>
+    <span id="toolbar-title">Log Viewer</span>
+    <span id="status-text">Loading...</span>
+  </div>
+  <div id="log-tabs">
+    <button class="tab-btn active" data-tab="by-user">Logs by User</button>
+    <button class="tab-btn" data-tab="all-logs">All Logs</button>
+    <button class="tab-btn" data-tab="visits">Visits</button>
+  </div>
+  <div id="log-layout">
+    <!-- Logs by User tab -->
+    <div id="tab-by-user" class="tab-content active">
+      <div id="user-list-panel">
+        <input id="user-search" type="text" placeholder="Search users...">
+        <div id="user-list"></div>
+      </div>
+      <div id="user-logs-panel">
+        <div id="user-logs-header"></div>
+        <div id="user-logs"></div>
+        <div id="user-logs-footer">
+          <button id="btn-load-more-user" style="display:none">Load More</button>
+        </div>
+      </div>
+    </div>
+    <!-- All Logs tab -->
+    <div id="tab-all-logs" class="tab-content">
+      <div id="all-logs-controls">
+        <label for="all-logs-level">Level:</label>
+        <select id="all-logs-level">
+          <option value="">All</option>
+          <option value="trace">Trace</option>
+          <option value="debug">Debug</option>
+          <option value="information">Information</option>
+          <option value="warning">Warning</option>
+          <option value="error">Error</option>
+          <option value="critical">Critical</option>
+        </select>
+      </div>
+      <div id="all-logs-scroll">
+        <div class="log-table" id="all-logs-table"></div>
+      </div>
+      <div id="all-logs-footer">
+        <button id="btn-load-more-all" style="display:none">Load More</button>
+      </div>
+    </div>
+    <!-- Visits tab -->
+    <div id="tab-visits" class="tab-content">
+      <div id="visits-scroll">
+        <div id="visits-list"></div>
+      </div>
+      <div id="visits-footer">
+        <button id="btn-load-more-visits" style="display:none">Load More</button>
+      </div>
+    </div>
+  </div>
+  <div id="visit-photo-overlay" class="hidden">
+    <div id="visit-photo-panel">
+      <button id="btn-close-photo">X</button>
+      <img id="visit-photo-img" src="" alt="Visit photo">
+    </div>
+  </div>
+  <div id="log-detail-overlay" class="hidden">
+    <div id="log-detail-panel">
+      <div id="log-detail-header">
+        <span>Log Detail</span>
+        <button id="btn-close-detail">X</button>
+      </div>
+      <div id="log-detail-body"></div>
+    </div>
+  </div>
+  <script src="log-viewer.js"></script>
+</body>
+</html>

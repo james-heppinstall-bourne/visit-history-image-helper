@@ -10,8 +10,8 @@ def main():
     web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 
     window = webview.create_window(
-        "Image Crop Helper",
-        url=os.path.join(web_dir, "index.html"),
+        "Visit History Image Helper",
+        url=os.path.join(web_dir, "home.html"),
         js_api=api,
         width=1000,
         height=750,

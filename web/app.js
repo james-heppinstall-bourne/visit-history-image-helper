@@ -31,6 +31,7 @@ const filenameInput = document.getElementById("filename-input");
 const creditInput = document.getElementById("credit-input");
 const licenceSelect = document.getElementById("licence-select");
 const btnApplyCredit = document.getElementById("btn-apply-credit");
+const btnBack = document.getElementById("btn-back");
 const placeInput = document.getElementById("place-input");
 const placesList = document.getElementById("places-list");
 
@@ -164,6 +165,10 @@ function enableButtons() {
 }
 
 // --- Event handlers ---
+
+btnBack.addEventListener("click", () => {
+  window.location.href = "home.html";
+});
 
 btnOpen.addEventListener("click", async () => {
   setStatus("Opening file...");
