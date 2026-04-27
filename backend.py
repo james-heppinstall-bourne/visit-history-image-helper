@@ -423,6 +423,79 @@ class Api:
         except Exception as e:
             return {"visits": [], "error": str(e)}
 
+    def get_active_users(self):
+        try:
+            client = self._get_supabase_client()
+            if client is None:
+                return {"users": [], "error": "Supabase not configured"}
+
+            # Calls the get_user_last_active() SQL function (create it via the
+            # Supabase SQL editor):
+            #   create or replace function get_user_last_active()
+            #   returns table(user_id uuid, last_active timestamptz)
+            #   language sql security definer as $$
+            #     select user_id, max(created_at) as last_active
+            #     from app_logs where user_id is not null group by user_id;
+            #   $$;
+            result = client.rpc("get_user_last_active").execute()
+            last_active_map = {
+                row["user_id"]: row["last_active"]
+                for row in (result.data or [])
+            }
+
+            auth_result = self.get_auth_users()
+            all_users = auth_result.get("users", [])
+
+            with_activity, without_activity = [], []
+            for u in all_users:
+                u = dict(u)
+                u["last_active"] = last_active_map.get(u["id"])
+                (with_activity if u["last_active"] else without_activity).append(u)
+
+            with_activity.sort(key=lambda u: u["last_active"], reverse=True)
+            return {"users": with_activity + without_activity}
+        except Exception as e:
+            return {"users": [], "error": str(e)}
+
+    def get_subscriptions(self, page=1, page_size=50):
+        try:
+            client = self._get_supabase_client()
+            if client is None:
+                return {"subscriptions": [], "error": "Supabase not configured"}
+            offset = (page - 1) * page_size
+
+            # Find successful subscription purchase logs:
+            # [SUB] PurchaseSubscriptionAsync for visithistory_subscription_yearly/monthly
+            # followed by [PAYWALL] PurchaseSubscriptionAsync returned: Success
+            # We query for the [SUB] line which contains the subscription type
+            result = (
+                client.table("app_logs")
+                .select("id, created_at, user_id, message")
+                .like("message", "%[SUB] PurchaseSubscriptionAsync for visithistory_subscription_%")
+                .order("created_at", desc=True)
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
+            logs = result.data or []
+            subscriptions = []
+            for log in logs:
+                msg = log.get("message", "")
+                if "visithistory_subscription_yearly" in msg:
+                    sub_type = "yearly"
+                elif "visithistory_subscription_monthly" in msg:
+                    sub_type = "monthly"
+                else:
+                    sub_type = "unknown"
+                subscriptions.append({
+                    "id": log["id"],
+                    "user_id": log.get("user_id"),
+                    "created_at": log.get("created_at"),
+                    "subscription_type": sub_type,
+                })
+            return {"subscriptions": subscriptions, "page": page, "page_size": page_size}
+        except Exception as e:
+            return {"subscriptions": [], "error": str(e)}
+
     def choose_output_folder(self):
         result = self._window.create_file_dialog(webview.FOLDER_DIALOG)
         if result and len(result) > 0:

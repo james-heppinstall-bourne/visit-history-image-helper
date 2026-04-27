@@ -5,10 +5,23 @@ let selectedUserId = null;
 let userLogsPage = 1;
 let userLogsLoading = false;
 
+// Active user state
+let activeUsers = [];
+let filteredActiveUsers = [];
+let selectedActiveUserId = null;
+let activeUserLogsPage = 1;
+let activeUserLogsLoading = false;
+let activeUsersLoaded = false;
+
 // Visits state
 let visitsPage = 1;
 let visitsLoading = false;
 let visitsLoaded = false;
+
+// Subscriptions state
+let subsPage = 1;
+let subsLoading = false;
+let subsLoaded = false;
 
 // All logs state
 let allLogsPage = 1;
@@ -37,11 +50,17 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+    if (btn.dataset.tab === "active-user" && !activeUsersLoaded) {
+      loadActiveUsers();
+    }
     if (btn.dataset.tab === "all-logs" && !allLogsLoaded) {
       loadAllLogs();
     }
     if (btn.dataset.tab === "visits" && !visitsLoaded) {
       loadVisits();
+    }
+    if (btn.dataset.tab === "subscriptions" && !subsLoaded) {
+      loadSubscriptions();
     }
   });
 });
@@ -145,6 +164,101 @@ userSearch.addEventListener("input", () => {
   renderUserList();
 });
 
+// Active user tab
+const activeUserListEl = document.getElementById("active-user-list");
+const activeUserSearch = document.getElementById("active-user-search");
+const activeUserLogsHeader = document.getElementById("active-user-logs-header");
+const activeUserLogsContainer = document.getElementById("active-user-logs");
+const btnLoadMoreActiveUser = document.getElementById("btn-load-more-active-user");
+
+async function loadActiveUsers() {
+  activeUsersLoaded = true;
+  statusText.textContent = "Loading active users...";
+  try {
+    const result = await pywebview.api.get_active_users();
+    if (result.error) {
+      statusText.textContent = "Error: " + result.error;
+      return;
+    }
+    activeUsers = result.users || [];
+    filteredActiveUsers = activeUsers;
+    renderActiveUserList();
+    statusText.textContent = activeUsers.length + " active users loaded";
+  } catch (e) {
+    statusText.textContent = "Error loading active users";
+  }
+}
+
+function renderActiveUserList() {
+  activeUserListEl.innerHTML = "";
+  for (const user of filteredActiveUsers) {
+    const item = document.createElement("div");
+    item.className = "user-item" + (user.id === selectedActiveUserId ? " selected" : "");
+    item.dataset.userId = user.id;
+
+    const name = user.display_name || user.email || user.id;
+    const sub = user.display_name ? user.email : "";
+    const date = user.last_active ? formatDateTime(user.last_active) : formatDate(user.created_at);
+
+    item.innerHTML =
+      '<div class="user-item-name">' + escapeHtml(name) + "</div>" +
+      (sub ? '<div class="user-item-email">' + escapeHtml(sub) + "</div>" : "") +
+      '<div class="user-item-date">Active ' + date + "</div>";
+
+    item.addEventListener("click", () => selectActiveUser(user));
+    activeUserListEl.appendChild(item);
+  }
+}
+
+function selectActiveUser(user) {
+  selectedActiveUserId = user.id;
+  renderActiveUserList();
+  activeUserLogsPage = 1;
+  activeUserLogsContainer.innerHTML = '<div class="log-table" id="active-user-logs-table"></div>';
+  btnLoadMoreActiveUser.style.display = "none";
+
+  const name = user.display_name || user.email || user.id;
+  activeUserLogsHeader.innerHTML = '<span class="logs-panel-title">Logs for ' + escapeHtml(name) + "</span>";
+
+  loadActiveUserLogs();
+}
+
+async function loadActiveUserLogs() {
+  if (activeUserLogsLoading || !selectedActiveUserId) return;
+  activeUserLogsLoading = true;
+  statusText.textContent = "Loading logs...";
+  try {
+    const result = await pywebview.api.get_logs_for_user(selectedActiveUserId, activeUserLogsPage);
+    if (result.error) {
+      statusText.textContent = "Error: " + result.error;
+      activeUserLogsLoading = false;
+      return;
+    }
+    const logs = result.logs || [];
+    const table = document.getElementById("active-user-logs-table") || activeUserLogsContainer;
+    appendLogRows(table, logs, false);
+    btnLoadMoreActiveUser.style.display = logs.length >= result.page_size ? "inline-block" : "none";
+    activeUserLogsPage++;
+    statusText.textContent = "Loaded";
+  } catch (e) {
+    statusText.textContent = "Error loading logs";
+  }
+  activeUserLogsLoading = false;
+}
+
+btnLoadMoreActiveUser.addEventListener("click", loadActiveUserLogs);
+
+activeUserSearch.addEventListener("input", () => {
+  const q = activeUserSearch.value.trim().toLowerCase();
+  filteredActiveUsers = q
+    ? activeUsers.filter((u) =>
+        (u.email && u.email.toLowerCase().includes(q)) ||
+        (u.display_name && u.display_name.toLowerCase().includes(q))
+      )
+    : activeUsers;
+  renderActiveUserList();
+});
+
 // All logs
 async function loadAllLogs() {
   if (allLogsLoading) return;
@@ -192,6 +306,12 @@ function getUserLabel(userId) {
   return userId.slice(0, 8);
 }
 
+function isTestUser(userId) {
+  if (!userId) return false;
+  const u = users.find((u) => u.id === userId);
+  return u && u.email && u.email.toLowerCase().startsWith("testuser@");
+}
+
 // Render log rows
 function appendLogRows(container, logs, showUser) {
   for (const log of logs) {
@@ -207,7 +327,7 @@ function appendLogRows(container, logs, showUser) {
       '<span class="log-category">' + escapeHtml(log.category) + "</span>" +
       '<span class="log-message">' + escapeHtml(log.message) + "</span>";
     row.innerHTML = html;
-    row.addEventListener("click", () => showDetail(log));
+    row.addEventListener("dblclick", () => showDetail(log));
     container.appendChild(row);
   }
 }
@@ -357,6 +477,42 @@ photoOverlay.addEventListener("click", (e) => {
     photoImg.src = "";
   }
 });
+
+// Subscriptions
+const subsTableBody = document.getElementById("subs-table-body");
+const btnLoadMoreSubs = document.getElementById("btn-load-more-subs");
+
+async function loadSubscriptions() {
+  if (subsLoading) return;
+  subsLoading = true;
+  subsLoaded = true;
+  statusText.textContent = "Loading subscriptions...";
+  try {
+    const result = await pywebview.api.get_subscriptions(subsPage);
+    if (result.error) {
+      statusText.textContent = "Error: " + result.error;
+      subsLoading = false;
+      return;
+    }
+    const subs = (result.subscriptions || []).filter((s) => !isTestUser(s.user_id));
+    for (const s of subs) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td>' + formatDateTime(s.created_at) + '</td>' +
+        '<td>' + escapeHtml(getUserLabel(s.user_id)) + '</td>' +
+        '<td><span class="sub-type-badge sub-type-' + s.subscription_type + '">' + escapeHtml(s.subscription_type) + '</span></td>';
+      subsTableBody.appendChild(tr);
+    }
+    btnLoadMoreSubs.style.display = subs.length >= result.page_size ? "inline-block" : "none";
+    subsPage++;
+    statusText.textContent = subs.length + " subscriptions loaded";
+  } catch (e) {
+    statusText.textContent = "Error loading subscriptions";
+  }
+  subsLoading = false;
+}
+
+btnLoadMoreSubs.addEventListener("click", loadSubscriptions);
 
 // Helpers
 function escapeHtml(str) {

@@ -14,8 +14,10 @@
   </div>
   <div id="log-tabs">
     <button class="tab-btn active" data-tab="by-user">Logs by User</button>
+    <button class="tab-btn" data-tab="active-user">Logs by Active User</button>
     <button class="tab-btn" data-tab="all-logs">All Logs</button>
     <button class="tab-btn" data-tab="visits">Visits</button>
+    <button class="tab-btn" data-tab="subscriptions">Subscriptions</button>
   </div>
   <div id="log-layout">
     <!-- Logs by User tab -->
@@ -29,6 +31,20 @@
         <div id="user-logs"></div>
         <div id="user-logs-footer">
           <button id="btn-load-more-user" style="display:none">Load More</button>
+        </div>
+      </div>
+    </div>
+    <!-- Logs by Active User tab -->
+    <div id="tab-active-user" class="tab-content">
+      <div id="active-user-list-panel">
+        <input id="active-user-search" type="text" placeholder="Search users...">
+        <div id="active-user-list"></div>
+      </div>
+      <div id="active-user-logs-panel">
+        <div id="active-user-logs-header"></div>
+        <div id="active-user-logs"></div>
+        <div id="active-user-logs-footer">
+          <button id="btn-load-more-active-user" style="display:none">Load More</button>
         </div>
       </div>
     </div>
@@ -60,6 +76,24 @@
       </div>
       <div id="visits-footer">
         <button id="btn-load-more-visits" style="display:none">Load More</button>
+      </div>
+    </div>
+    <!-- Subscriptions tab -->
+    <div id="tab-subscriptions" class="tab-content">
+      <div id="subscriptions-scroll">
+        <table class="subs-table" id="subs-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>User</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody id="subs-table-body"></tbody>
+        </table>
+      </div>
+      <div id="subscriptions-footer">
+        <button id="btn-load-more-subs" style="display:none">Load More</button>
       </div>
     </div>
   </div>

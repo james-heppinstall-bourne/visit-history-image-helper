@@ -390,8 +390,9 @@ body {
 
 .log-row {
   display: table-row;
-  cursor: pointer;
+  cursor: default;
   transition: background 0.1s;
+  user-select: text;
 }
 
 .log-row:hover {
@@ -526,6 +527,8 @@ body {
   vertical-align: top;
   border-bottom: 1px solid #0f3460;
   font-size: 12px;
+  user-select: text;
+  cursor: default;
 }
 
 .detail-label {
@@ -560,6 +563,78 @@ body {
   text-align: center;
   margin-top: 40px;
   width: 100%;
+}
+
+/* Logs by Active User tab — mirrors by-user layout */
+#tab-active-user {
+  flex-direction: row;
+}
+
+#active-user-list-panel {
+  width: 280px;
+  min-width: 200px;
+  border-right: 1px solid #0f3460;
+  display: flex;
+  flex-direction: column;
+  background: #16213e;
+}
+
+#active-user-search {
+  padding: 8px 12px;
+  border: none;
+  border-bottom: 1px solid #0f3460;
+  background: #0f3460;
+  color: #eee;
+  font-size: 13px;
+  outline: none;
+}
+
+#active-user-search::placeholder {
+  color: #666;
+}
+
+#active-user-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+#active-user-logs-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#active-user-logs-header {
+  padding: 8px 12px;
+  background: #1a1a2e;
+  border-bottom: 1px solid #0f3460;
+  flex-shrink: 0;
+}
+
+#active-user-logs {
+  flex: 1;
+  overflow-y: auto;
+}
+
+#active-user-logs-footer {
+  padding: 8px 12px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+#active-user-logs-footer button {
+  padding: 6px 14px;
+  border: 1px solid #0f3460;
+  border-radius: 4px;
+  background: #0f3460;
+  color: #eee;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+#active-user-logs-footer button:hover {
+  background: #1a5276;
 }
 
 /* All logs tab */
@@ -752,6 +827,90 @@ body {
 }
 
 #visits-footer button:hover {
+  background: #1a5276;
+}
+
+/* Subscriptions tab */
+#tab-subscriptions {
+  flex-direction: column;
+}
+
+#subscriptions-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.subs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.subs-table thead th {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 2px solid #0f3460;
+  color: #888;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.subs-table tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #0f3460;
+  color: #ddd;
+  user-select: text;
+  cursor: default;
+}
+
+.subs-table tbody tr:hover {
+  background: #1a2a4a;
+}
+
+.sub-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.sub-type-yearly {
+  background: #1a3a1a;
+  color: #6c6;
+}
+
+.sub-type-monthly {
+  background: #1a2a4a;
+  color: #6af;
+}
+
+.sub-type-unknown {
+  background: #333;
+  color: #999;
+}
+
+#subscriptions-footer {
+  padding: 8px 12px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+#subscriptions-footer button {
+  padding: 6px 14px;
+  border: 1px solid #0f3460;
+  border-radius: 4px;
+  background: #0f3460;
+  color: #eee;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+#subscriptions-footer button:hover {
   background: #1a5276;
 }
 
