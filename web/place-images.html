@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Place Images</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="toolbar">
+    <button id="btn-back">Back</button>
+    <span id="toolbar-title">Place Images</span>
+    <button id="btn-refresh" title="Reload the place list from Supabase">Refresh</button>
+    <button id="btn-folder">Output Folder</button>
+    <span id="status-text">Loading places…</span>
+  </div>
+
+  <div id="pi-layout">
+    <aside id="pi-sidebar">
+      <div id="pi-filters">
+        <input id="pi-search" type="text" placeholder="Search name, town or county…" autocomplete="off">
+        <select id="pi-filter">
+          <option value="all">All places</option>
+          <option value="no-card">Missing card image</option>
+          <option value="no-hero">Missing hero image</option>
+          <option value="no-both">Missing both images</option>
+        </select>
+        <div id="pi-count"></div>
+      </div>
+      <div id="pi-list"></div>
+    </aside>
+
+    <main id="pi-main">
+      <div id="pi-placebar">
+        <div id="pi-place-name">Select a place</div>
+        <div id="pi-place-meta"></div>
+        <button id="pi-find-all" class="pi-find" disabled>Find both with Claude</button>
+        <label class="pi-field" title="Base filename. The hero is saved with a -hero suffix.">
+          <span>File</span>
+          <input id="pi-filename" type="text" placeholder="filename" disabled>
+        </label>
+      </div>
+
+      <div id="pi-panels">
+        <!-- Panels are keyed by target name; the markup is identical bar the ids. -->
+        <section class="pi-panel" id="panel-card" data-slot="card">
+          <header class="pi-panel-head">
+            <span class="pi-panel-title">Card</span>
+            <span class="pi-panel-dims" data-role="dims"></span>
+            <span class="pi-badge" data-role="state">—</span>
+            <button class="pi-collapse" data-action="expand">⤢</button>
+          </header>
+          <div class="pi-stage" data-role="stage">
+            <canvas data-role="canvas"></canvas>
+            <div class="pi-overlay" data-role="overlay"></div>
+            <div class="pi-hint" data-role="hint">
+              <span data-role="hint-text">Open, paste or drop an image</span>
+              <button data-action="find" class="pi-find">Find with Claude</button>
+              <button data-action="browse" class="pi-browse">Browse Commons</button>
+            </div>
+            <div class="pi-finding" data-role="finding">
+              <div class="pi-finding-head"><span class="pi-spinner"></span><span data-role="find-title">Searching</span></div>
+              <ol class="pi-finding-log" data-role="find-log"></ol>
+              <button data-action="cancel-find">Cancel</button>
+            </div>
+            <div class="pi-preview" data-role="preview">
+              <img data-role="preview-img" alt="">
+              <div class="pi-preview-bar">
+                <span class="pi-preview-name" data-role="preview-name"></span>
+                <button data-action="recrop" title="Load this image back in as the source and start cropping">Re-crop</button>
+                <button data-action="replace" title="Open a different image to crop; the place keeps this one until you save">Replace</button>
+                <button data-action="unlink" title="Clear this column on the place">Clear</button>
+              </div>
+            </div>
+          </div>
+          <div class="pi-tools">
+            <button data-action="open">Open</button>
+            <button data-action="zoom-in" disabled>+</button>
+            <button data-action="zoom-out" disabled>−</button>
+            <button data-action="rot-ccw" disabled title="Rotate 1° counter-clockwise">↺</button>
+            <button data-action="rot-cw" disabled title="Rotate 1° clockwise">↻</button>
+            <button data-action="centre" disabled title="Re-centre image">Centre</button>
+            <button data-action="enhance" disabled>Enhance: OFF</button>
+            <button data-action="copy-to" disabled title="Use this source in the other panel">Copy →</button>
+            <button data-action="save" class="pi-save" disabled>Save Card</button>
+          </div>
+          <div class="pi-credit">
+            <input data-role="credit" type="text" placeholder="Photo credit" disabled>
+            <select data-role="licence" disabled>
+              <option value="CC BY 2.0">CC BY 2.0</option>
+              <option value="CC BY 3.0">CC BY 3.0</option>
+              <option value="CC BY 4.0">CC BY 4.0</option>
+              <option value="CC BY-SA 2.0">CC BY-SA 2.0</option>
+              <option value="CC BY-SA 3.0">CC BY-SA 3.0</option>
+              <option value="CC BY-SA 4.0">CC BY-SA 4.0</option>
+              <option value="CC0">CC0</option>
+              <option value="Public domain">Public domain</option>
+            </select>
+            <button data-action="apply-credit" disabled>Apply</button>
+          </div>
+          <div class="pi-attrib" data-role="attrib">
+            <span data-role="attrib-text"></span>
+            <button data-action="source">Source</button>
+          </div>
+        </section>
+
+        <section class="pi-panel" id="panel-hero" data-slot="hero">
+          <header class="pi-panel-head">
+            <span class="pi-panel-title">Hero</span>
+            <span class="pi-panel-dims" data-role="dims"></span>
+            <span class="pi-badge" data-role="state">—</span>
+            <button class="pi-collapse" data-action="expand">⤢</button>
+          </header>
+          <div class="pi-stage" data-role="stage">
+            <canvas data-role="canvas"></canvas>
+            <div class="pi-overlay hero" data-role="overlay"></div>
+            <div class="pi-hint" data-role="hint">
+              <span data-role="hint-text">Open, paste or drop an image</span>
+              <button data-action="find" class="pi-find">Find with Claude</button>
+              <button data-action="browse" class="pi-browse">Browse Commons</button>
+            </div>
+            <div class="pi-finding" data-role="finding">
+              <div class="pi-finding-head"><span class="pi-spinner"></span><span data-role="find-title">Searching</span></div>
+              <ol class="pi-finding-log" data-role="find-log"></ol>
+              <button data-action="cancel-find">Cancel</button>
+            </div>
+            <div class="pi-preview" data-role="preview">
+              <img data-role="preview-img" alt="">
+              <div class="pi-preview-bar">
+                <span class="pi-preview-name" data-role="preview-name"></span>
+                <button data-action="recrop" title="Load this image back in as the source and start cropping">Re-crop</button>
+                <button data-action="replace" title="Open a different image to crop; the place keeps this one until you save">Replace</button>
+                <button data-action="unlink" title="Clear this column on the place">Clear</button>
+              </div>
+            </div>
+          </div>
+          <div class="pi-tools">
+            <button data-action="open">Open</button>
+            <button data-action="zoom-in" disabled>+</button>
+            <button data-action="zoom-out" disabled>−</button>
+            <button data-action="rot-ccw" disabled title="Rotate 1° counter-clockwise">↺</button>
+            <button data-action="rot-cw" disabled title="Rotate 1° clockwise">↻</button>
+            <button data-action="centre" disabled title="Re-centre image">Centre</button>
+            <button data-action="enhance" disabled>Enhance: OFF</button>
+            <button data-action="copy-to" disabled title="Use this source in the other panel">← Copy</button>
+            <button data-action="save" class="pi-save" disabled>Save Hero</button>
+          </div>
+          <div class="pi-credit">
+            <input data-role="credit" type="text" placeholder="Photo credit" disabled>
+            <select data-role="licence" disabled>
+              <option value="CC BY 2.0">CC BY 2.0</option>
+              <option value="CC BY 3.0">CC BY 3.0</option>
+              <option value="CC BY 4.0">CC BY 4.0</option>
+              <option value="CC BY-SA 2.0">CC BY-SA 2.0</option>
+              <option value="CC BY-SA 3.0">CC BY-SA 3.0</option>
+              <option value="CC BY-SA 4.0">CC BY-SA 4.0</option>
+              <option value="CC0">CC0</option>
+              <option value="Public domain">Public domain</option>
+            </select>
+            <button data-action="apply-credit" disabled>Apply</button>
+          </div>
+          <div class="pi-attrib" data-role="attrib">
+            <span data-role="attrib-text"></span>
+            <button data-action="source">Source</button>
+          </div>
+        </section>
+      </div>
+      <div id="pi-picker" hidden>
+        <div id="pi-picker-bar">
+          <strong id="pi-picker-title">Browse Commons</strong>
+          <input id="pi-picker-query" type="text" placeholder="Search terms…" autocomplete="off">
+          <select id="pi-picker-mode">
+            <option value="auto">Category, then search</option>
+            <option value="category">Category only</option>
+            <option value="search">Search only</option>
+          </select>
+          <label class="pi-picker-check">
+            <input id="pi-picker-large" type="checkbox" checked>
+            <span>Large landscape only</span>
+          </label>
+          <button id="pi-picker-search">Search</button>
+          <select id="pi-picker-sort" title="Best fit ranks photos by how much of their height survives this crop; largest ranks by pixel count.">
+            <option value="fit">Sort: best fit</option>
+            <option value="size">Sort: largest</option>
+          </select>
+          <span id="pi-picker-target-label">for</span>
+          <div class="toolbar-group" id="pi-picker-target">
+            <button class="target-btn active" data-slot="card">Card</button>
+            <button class="target-btn" data-slot="hero">Hero</button>
+          </div>
+          <span id="pi-picker-count"></span>
+          <button id="pi-picker-close" title="Close (Esc)">✕</button>
+        </div>
+        <div id="pi-picker-grid"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="place-images.js"></script>
+</body>
+</html>

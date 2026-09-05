@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Log Viewer</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -13,21 +14,64 @@
     <span id="status-text">Loading...</span>
   </div>
   <div id="log-tabs">
-    <button class="tab-btn active" data-tab="by-user">Logs by User</button>
+    <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+    <button class="tab-btn" data-tab="by-user">Logs by User</button>
     <button class="tab-btn" data-tab="active-user">Logs by Active User</button>
     <button class="tab-btn" data-tab="all-logs">All Logs</button>
     <button class="tab-btn" data-tab="visits">Visits</button>
     <button class="tab-btn" data-tab="subscriptions">Subscriptions</button>
+    <button class="tab-btn" data-tab="tags">Tag Explorer</button>
   </div>
   <div id="log-layout">
+    <!-- Dashboard tab -->
+    <div id="tab-dashboard" class="tab-content active">
+      <div id="dashboard-controls">
+        <label for="dash-range">Range:</label>
+        <select id="dash-range">
+          <option value="week">Week</option>
+          <option value="month" selected>Month</option>
+          <option value="year">Year</option>
+          <option value="all">All time</option>
+        </select>
+        <div id="dash-nav">
+          <button id="btn-dash-prev" title="Previous period">&#9664;</button>
+          <span id="dash-period-label"></span>
+          <button id="btn-dash-next" title="Next period">&#9654;</button>
+        </div>
+        <button id="btn-dash-today">Today</button>
+        <label class="dash-check">
+          <input type="checkbox" id="dash-include-test"> Include test users
+        </label>
+      </div>
+      <div id="dashboard-body">
+        <div class="dash-section">
+          <div class="dash-section-title">Sign-ups</div>
+          <div class="dash-stats" id="dash-stats"></div>
+          <div class="dash-card">
+            <div class="dash-card-title">New sign-ups</div>
+            <div class="dash-card-sub" id="dash-chart-sub"></div>
+            <div id="signups-chart"></div>
+          </div>
+        </div>
+        <div class="dash-section">
+          <div class="dash-section-title">Subscriptions</div>
+          <div class="dash-stats" id="dash-sub-stats"></div>
+          <div class="dash-card">
+            <div class="dash-card-title">New subscriptions</div>
+            <div class="dash-card-sub" id="dash-sub-chart-sub"></div>
+            <div id="subs-signups-chart"></div>
+          </div>
+        </div>
+      </div>
+    </div>
     <!-- Logs by User tab -->
-    <div id="tab-by-user" class="tab-content active">
+    <div id="tab-by-user" class="tab-content">
       <div id="user-list-panel">
         <input id="user-search" type="text" placeholder="Search users...">
         <div id="user-list"></div>
       </div>
       <div id="user-logs-panel">
-        <div id="user-logs-header"></div>
+        <div id="user-logs-header" class="logs-header"><span class="logs-panel-title" id="user-logs-title"></span><select class="log-source-select" id="user-logs-source" title="Log source"><option value="all">App + Web</option><option value="app">App</option><option value="web">Web</option></select></div>
         <div id="user-logs"></div>
         <div id="user-logs-footer">
           <button id="btn-load-more-user" style="display:none">Load More</button>
@@ -38,10 +82,15 @@
     <div id="tab-active-user" class="tab-content">
       <div id="active-user-list-panel">
         <input id="active-user-search" type="text" placeholder="Search users...">
+        <select id="active-user-filter" class="log-source-select" title="Show users active in">
+          <option value="any">Active anywhere</option>
+          <option value="app">Active in app</option>
+          <option value="web">Active in web</option>
+        </select>
         <div id="active-user-list"></div>
       </div>
       <div id="active-user-logs-panel">
-        <div id="active-user-logs-header"></div>
+        <div id="active-user-logs-header" class="logs-header"><span class="logs-panel-title" id="active-user-logs-title"></span><select class="log-source-select" id="active-user-logs-source" title="Log source"><option value="all">App + Web</option><option value="app">App</option><option value="web">Web</option></select></div>
         <div id="active-user-logs"></div>
         <div id="active-user-logs-footer">
           <button id="btn-load-more-active-user" style="display:none">Load More</button>
@@ -51,6 +100,8 @@
     <!-- All Logs tab -->
     <div id="tab-all-logs" class="tab-content">
       <div id="all-logs-controls">
+        <label for="all-logs-source">Source:</label>
+        <select class="log-source-select" id="all-logs-source" title="Log source"><option value="all">App + Web</option><option value="app">App</option><option value="web">Web</option></select>
         <label for="all-logs-level">Level:</label>
         <select id="all-logs-level">
           <option value="">All</option>
@@ -71,22 +122,70 @@
     </div>
     <!-- Visits tab -->
     <div id="tab-visits" class="tab-content">
-      <div id="visits-scroll">
-        <div id="visits-list"></div>
+      <div id="visit-subtabs" class="subtabs">
+        <button class="subtab-btn active" data-subtab="visit-list">Visit List</button>
+        <button class="subtab-btn" data-subtab="visit-map">Visit Map</button>
       </div>
-      <div id="visits-footer">
-        <button id="btn-load-more-visits" style="display:none">Load More</button>
+      <div id="subtab-visit-list" class="subtab-content active">
+        <div id="visits-scroll">
+          <div id="visits-list"></div>
+          <div id="visits-sentinel"></div>
+        </div>
+      </div>
+      <div id="subtab-visit-map" class="subtab-content">
+        <div id="visit-map-controls">
+          <label for="visit-map-period">Period:</label>
+          <select id="visit-map-period">
+            <option value="today">Today</option>
+            <option value="week">This week</option>
+            <option value="month">This month</option>
+            <option value="year">This year</option>
+            <option value="all" selected>All time</option>
+          </select>
+          <label for="visit-map-user">User:</label>
+          <select id="visit-map-user">
+            <option value="">All users</option>
+          </select>
+          <span id="visit-map-summary"></span>
+        </div>
+        <div id="visit-map-body">
+          <div id="visit-layer-panel">
+            <div id="visit-layer-header">
+              <span>Layers</span>
+              <div id="visit-layer-actions">
+                <button id="btn-visit-layers-all">All</button>
+                <button id="btn-visit-layers-none">None</button>
+              </div>
+            </div>
+            <div id="visit-layer-list"></div>
+          </div>
+          <div id="visit-map-pane">
+            <div id="visit-map"></div>
+          </div>
+        </div>
       </div>
     </div>
     <!-- Subscriptions tab -->
     <div id="tab-subscriptions" class="tab-content">
+      <div id="subs-controls">
+        <label for="subs-status">Status:</label>
+        <select id="subs-status">
+          <option value="active">Active</option>
+          <option value="lapsed">Lapsed</option>
+          <option value="">All</option>
+        </select>
+        <span id="subs-summary"></span>
+      </div>
       <div id="subscriptions-scroll">
         <table class="subs-table" id="subs-table">
           <thead>
             <tr>
-              <th>Date</th>
+              <th>Subscribed</th>
               <th>User</th>
               <th>Type</th>
+              <th>Status</th>
+              <th>Expires</th>
+              <th>Platform</th>
             </tr>
           </thead>
           <tbody id="subs-table-body"></tbody>
@@ -96,11 +195,93 @@
         <button id="btn-load-more-subs" style="display:none">Load More</button>
       </div>
     </div>
+    <!-- Tag Explorer tab -->
+    <div id="tab-tags" class="tab-content">
+      <div id="tag-subtabs" class="subtabs">
+        <button class="subtab-btn active" data-subtab="assignments">Assignments</button>
+        <button class="subtab-btn" data-subtab="pending">Suggestions <span id="pending-count" class="subtab-badge"></span></button>
+        <button class="subtab-btn" data-subtab="removals">Removal Requests <span id="removals-count" class="subtab-badge"></span></button>
+      </div>
+      <div id="subtab-pending" class="subtab-content">
+        <div id="pending-list"></div>
+      </div>
+      <div id="subtab-removals" class="subtab-content">
+        <div id="removals-list"></div>
+      </div>
+      <div id="subtab-assignments" class="subtab-content active">
+        <div id="tags-controls">
+          <input id="tags-search" type="text" placeholder="Search place or tag...">
+          <label for="tags-user">User:</label>
+          <select id="tags-user">
+            <option value="">All</option>
+          </select>
+          <label for="tags-approved">Status:</label>
+          <select id="tags-approved">
+            <option value="">All</option>
+            <option value="approved">Approved</option>
+            <option value="unapproved">Unapproved</option>
+          </select>
+        </div>
+        <div id="tags-scroll">
+          <table class="tags-table" id="tags-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Place</th>
+                <th>Tag</th>
+                <th>Tagged by</th>
+              </tr>
+            </thead>
+            <tbody id="tags-table-body"></tbody>
+          </table>
+        </div>
+        <div id="tags-footer">
+          <button id="btn-load-more-tags" style="display:none">Load More</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="tag-action-overlay" class="hidden">
+    <div id="tag-action-panel">
+      <div id="tag-action-header">
+        <span id="tag-action-title">Approve tag</span>
+        <button id="btn-close-tag-action">X</button>
+      </div>
+      <div id="tag-action-body">
+        <div id="tag-action-message"></div>
+        <select id="tag-action-select"></select>
+      </div>
+      <div id="tag-action-footer">
+        <span id="tag-action-status"></span>
+        <button id="btn-tag-action-confirm">Confirm</button>
+        <button id="btn-tag-action-cancel">Cancel</button>
+      </div>
+    </div>
   </div>
   <div id="visit-photo-overlay" class="hidden">
     <div id="visit-photo-panel">
       <button id="btn-close-photo">X</button>
       <img id="visit-photo-img" src="" alt="Visit photo">
+      <div id="visit-photo-comment-bar">
+        <span id="visit-photo-comment-text"></span>
+        <button id="btn-edit-photo-comment">&#9998; Edit</button>
+        <button id="btn-download-photo">&#x2B07; Download</button>
+      </div>
+    </div>
+  </div>
+  <div id="visit-comments-overlay" class="hidden">
+    <div id="visit-comments-panel">
+      <div id="visit-comments-header">
+        <span id="visit-comments-modal-title">Edit Comments</span>
+        <button id="btn-close-comments">X</button>
+      </div>
+      <div id="visit-comments-body">
+        <textarea id="visit-comments-textarea" rows="8" placeholder="Public comments..."></textarea>
+      </div>
+      <div id="visit-comments-footer">
+        <button id="btn-save-comments">Save</button>
+        <button id="btn-cancel-comments">Cancel</button>
+      </div>
     </div>
   </div>
   <div id="log-detail-overlay" class="hidden">
@@ -112,6 +293,7 @@
       <div id="log-detail-body"></div>
     </div>
   </div>
+  <script src="vendor/leaflet/leaflet.js"></script>
   <script src="log-viewer.js"></script>
 </body>
 </html>

@@ -10,6 +10,18 @@ let creditText = "";
 let places = [];
 let selectedPlaceId = null;
 
+// Which output is being composed. The card (image_path, 2:1) and the hero
+// (hero_image_path, 3.1:1) are different aspect ratios, so each is its own
+// crop of the same source and its own Save. Mirrors TARGETS in backend.py.
+// creditScale/creditPlate mirror finder.credit_style(): a letterbox banner gets a
+// smaller credit with no plate, because a proportional plated one reads as a stripe.
+const TARGETS = {
+  card: { label: "Card", widthKey: "crop_width", heightKey: "crop_height", creditScale: 1.0, creditPlate: true },
+  hero: { label: "Hero", widthKey: "hero_width", heightKey: "hero_height", creditScale: 0.78, creditPlate: true },
+};
+let activeTarget = "card";
+let savedTargets = {}; // target -> last save result for the current image
+
 // DOM
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
@@ -34,12 +46,14 @@ const btnApplyCredit = document.getElementById("btn-apply-credit");
 const btnBack = document.getElementById("btn-back");
 const placeInput = document.getElementById("place-input");
 const placesList = document.getElementById("places-list");
+const targetButtons = Array.from(document.querySelectorAll(".target-btn"));
 
 // Init
 async function init() {
   config = await pywebview.api.get_config();
   resizeCanvas();
   updateCropOverlay();
+  renderTargetUi();
   draw();
 
   try {
@@ -67,6 +81,52 @@ function resizeCanvas() {
   canvas.height = container.clientHeight;
 }
 
+function targetDims(target = activeTarget) {
+  const t = TARGETS[target];
+  return { width: config[t.widthKey], height: config[t.heightKey] };
+}
+
+function renderTargetUi() {
+  const dims = targetDims();
+  for (const btn of targetButtons) {
+    const t = btn.dataset.target;
+    const d = targetDims(t);
+    btn.classList.toggle("active", t === activeTarget);
+    btn.textContent = TARGETS[t].label + (savedTargets[t] ? " ✓" : "");
+    btn.title = `${d.width}×${d.height}` + (savedTargets[t] ? ` — saved ${savedTargets[t].path}` : "");
+  }
+  btnSave.textContent = `Save ${TARGETS[activeTarget].label}`;
+  btnSave.title = `${dims.width}×${dims.height} WebP`;
+  overlay.classList.toggle("hero", activeTarget === "hero");
+}
+
+function setTarget(target) {
+  if (!TARGETS[target] || target === activeTarget) return;
+  activeTarget = target;
+  updateCropOverlay();
+  // Keep the composition — the hero is usually a re-frame of the card — but
+  // make sure the reshaped box is still covered by the image.
+  if (img) ensureImageCoversCrop();
+  renderTargetUi();
+  draw();
+  const d = targetDims();
+  setStatus(`${TARGETS[target].label} ${d.width}×${d.height}` + (savedTargets[target] ? " (already saved for this image)" : ""));
+}
+
+/** Zoom and shift so the image covers the crop box after it changes shape. */
+function ensureImageCoversCrop() {
+  const scaledW = img.width * imgTransform.scale;
+  const scaledH = img.height * imgTransform.scale;
+  const need = Math.max(cropBox.width / scaledW, cropBox.height / scaledH);
+  if (need > 1) zoom(need);
+  // Clamp position so no edge of the box falls outside the image. Uses the
+  // unrotated size; with rotation the backend clamps to the true bounds anyway.
+  const w = img.width * imgTransform.scale;
+  const h = img.height * imgTransform.scale;
+  imgTransform.x = Math.min(cropBox.x, Math.max(cropBox.x + cropBox.width - w, imgTransform.x));
+  imgTransform.y = Math.min(cropBox.y, Math.max(cropBox.y + cropBox.height - h, imgTransform.y));
+}
+
 function updateCropOverlay() {
   if (!config) return;
 
@@ -76,7 +136,8 @@ function updateCropOverlay() {
   // Scale crop box to fit within canvas with some padding
   const maxW = containerW * 0.85;
   const maxH = containerH * 0.85;
-  const ratio = config.crop_width / config.crop_height;
+  const dims = targetDims();
+  const ratio = dims.width / dims.height;
 
   let boxW, boxH;
   if (maxW / ratio <= maxH) {
@@ -112,19 +173,53 @@ function draw() {
     ctx.restore();
   }
   if (creditText) {
-    const padding = 8;
-    const fontSize = Math.max(12, Math.round(cropBox.height * 0.03));
+    // Same proportions as finder.watermark(), so the preview shows what lands
+    // in the file. Wide targets take a smaller credit with no plate behind it;
+    // the outline carries the contrast there instead.
+    const h = cropBox.height;
+    const style = TARGETS[activeTarget];
+    const px = (fraction, floor) => Math.max(floor, fraction * h);
+    const fontSize = px(0.025 * style.creditScale, 4);
     ctx.font = fontSize + "px sans-serif";
-    const metrics = ctx.measureText(creditText);
-    const textW = metrics.width;
-    const textH = fontSize;
-    const tx = cropBox.x + cropBox.width - textW - padding * 2;
-    const ty = cropBox.y + cropBox.height - textH - padding * 2;
-    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-    ctx.fillRect(tx, ty, textW + padding * 2, textH + padding * 2);
-    ctx.fillStyle = "#ffffff";
     ctx.textBaseline = "top";
-    ctx.fillText(creditText, tx + padding, ty + padding);
+    const textW = ctx.measureText(creditText).width;
+
+    if (style.creditPlate) {
+      const padX = px(0.015 * style.creditScale, 2);
+      const padY = px(0.01 * style.creditScale, 1);
+      const radius = px(0.008 * style.creditScale, 1);
+      const boxW = textW + padX * 2;
+      const boxH = fontSize + padY * 2;
+      // Flush into the corner, with the outer rounded corners pushed past the
+      // crop box so they clip square — same as finder.watermark().
+      const x = cropBox.x + cropBox.width - boxW;
+      const y = cropBox.y + cropBox.height - boxH;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(cropBox.x, cropBox.y, cropBox.width, cropBox.height);
+      ctx.clip();
+      ctx.fillStyle = "rgba(0, 0, 0, 0.47)";
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(x, y, boxW + radius, boxH + radius, radius);
+        ctx.fill();
+      } else {
+        ctx.fillRect(x, y, boxW, boxH);
+      }
+      ctx.fillStyle = "#fff";
+      ctx.fillText(creditText, x + padX, y + padY);
+      ctx.restore();
+    } else {
+      const margin = px(0.01, 2);
+      const x = cropBox.x + cropBox.width - margin - textW;
+      const y = cropBox.y + cropBox.height - margin - fontSize;
+      ctx.lineWidth = Math.max(1, fontSize / 9) * 2;
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
+      ctx.lineJoin = "round";
+      ctx.strokeText(creditText, x, y);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.94)";
+      ctx.fillText(creditText, x, y);
+    }
   }
 }
 
@@ -149,6 +244,7 @@ function loadImageFromDataUrl(dataUrl) {
 
 function setStatus(text) {
   statusText.textContent = text;
+  statusText.title = text; // hover for the full message when truncated
 }
 
 function enableButtons() {
@@ -192,6 +288,11 @@ btnOpen.addEventListener("click", async () => {
   selectedPlaceId = null;
   btnEnhance.textContent = "Auto Enhance: OFF";
   btnEnhance.classList.remove("active");
+  // New image: back to the card, nothing saved yet
+  savedTargets = {};
+  activeTarget = "card";
+  updateCropOverlay();
+  renderTargetUi();
 
   img = await loadImageFromDataUrl(result.data_url);
   overlay.style.display = "block";
@@ -257,9 +358,15 @@ placeInput.addEventListener("input", () => {
   }
 });
 
+for (const btn of targetButtons) {
+  btn.addEventListener("click", () => setTarget(btn.dataset.target));
+}
+
 btnSave.addEventListener("click", async () => {
   if (!img) return;
-  setStatus("Saving...");
+  const target = activeTarget;
+  const label = TARGETS[target].label.toLowerCase();
+  setStatus(`Saving ${label}...`);
   const result = await pywebview.api.save_crop(
     canvas.width,
     canvas.height,
@@ -269,16 +376,22 @@ btnSave.addEventListener("click", async () => {
     filenameInput.value.trim(),
     imgTransform.rotation,
     creditText,
-    selectedPlaceId
+    selectedPlaceId,
+    target
   );
   if (result.error) {
-    setStatus("Save error: " + result.error);
-  } else if (result.supabase_error) {
-    setStatus("Saved: " + result.path + " (upload failed: " + result.supabase_error + ")");
+    setStatus(`Save ${label} error: ` + result.error);
+    return;
+  }
+  savedTargets[target] = result;
+  renderTargetUi();
+  const kb = result.size_bytes ? ` ${Math.round(result.size_bytes / 1024)}KB` : "";
+  if (result.supabase_error) {
+    setStatus(`Saved ${label}: ${result.path}${kb} (upload failed: ${result.supabase_error})`);
   } else if (result.uploaded) {
-    setStatus("Saved & uploaded: " + result.path);
+    setStatus(`Saved & uploaded ${label} → ${result.column}: ${result.path}${kb}`);
   } else {
-    setStatus("Saved: " + result.path);
+    setStatus(`Saved ${label}: ${result.path}${kb}`);
   }
 });
 

@@ -33,7 +33,11 @@
       <datalist id="places-list"></datalist>
     </div>
     <input id="filename-input" type="text" placeholder="filename">
-    <button id="btn-save" disabled>Save</button>
+    <div class="toolbar-group" id="target-group" title="Which output to compose and save. Each is its own crop.">
+      <button id="btn-target-card" class="target-btn active" data-target="card">Card</button>
+      <button id="btn-target-hero" class="target-btn" data-target="hero">Hero</button>
+    </div>
+    <button id="btn-save" disabled>Save Card</button>
     <button id="btn-folder">Output Folder</button>
     <span id="status-text">No image loaded</span>
   </div>

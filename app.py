@@ -13,9 +13,11 @@ def main():
         "Visit History Image Helper",
         url=os.path.join(web_dir, "home.html"),
         js_api=api,
-        width=1000,
-        height=750,
-        min_size=(800, 600),
+        # Sized for the place image manager, which puts the place list and both
+        # crops on screen at once; the other screens just get more room.
+        width=1400,
+        height=900,
+        min_size=(1000, 650),
     )
     api.set_window(window)
 

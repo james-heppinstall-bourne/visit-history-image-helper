@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Place Map</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="toolbar">
+    <button id="btn-back">Back</button>
+    <span id="toolbar-title">Place Map</span>
+    <span id="status-text">Loading...</span>
+  </div>
+  <div id="map-layout">
+    <div id="map-sidebar">
+      <div id="map-sidebar-header">
+        <span>Datasets</span>
+        <div id="map-sidebar-actions">
+          <button id="btn-datasets-all">All</button>
+          <button id="btn-datasets-none">None</button>
+        </div>
+      </div>
+      <div id="dataset-list"></div>
+      <div id="pin-filter-section">
+        <label for="pin-filter">Pin position</label>
+        <select id="pin-filter">
+          <option value="all">All places</option>
+          <option value="not-updated">Not repositioned yet</option>
+          <option value="updated">Repositioned</option>
+        </select>
+      </div>
+    </div>
+    <div id="map-pane">
+      <div id="map"></div>
+      <button id="basemap-toggle" title="Switch base map"></button>
+      <div id="crosshair" class="hidden"></div>
+      <div id="reposition-bar" class="hidden">
+        <span id="reposition-label"></span>
+        <span id="reposition-coords"></span>
+        <button id="btn-reposition-save">Save</button>
+        <button id="btn-reposition-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+  <div id="place-overlay" class="hidden">
+    <div id="place-panel">
+      <div id="place-panel-header">
+        <span>Place</span>
+        <button id="btn-close-place">X</button>
+      </div>
+      <div id="place-panel-body">
+        <div id="place-name"></div>
+        <div id="place-pin-status"></div>
+        <div id="place-links">
+          <div class="place-link-row">
+            <span class="place-link-label">Official website</span>
+            <input id="input-official-website" type="text" placeholder="https://...">
+            <button class="btn-open-url" data-input="input-official-website">Open</button>
+          </div>
+          <div class="place-link-row">
+            <span class="place-link-label">Website</span>
+            <input id="input-website" type="text" placeholder="https://...">
+            <button class="btn-open-url" data-input="input-website">Open</button>
+          </div>
+        </div>
+      </div>
+      <div id="place-panel-footer">
+        <span id="place-save-status"></span>
+        <button id="btn-save-websites">Save websites</button>
+        <button id="btn-reposition">Reposition pin</button>
+        <button id="btn-confirm-pin" class="btn-small" title="Mark this pin as correct without moving it">Confirm pin</button>
+      </div>
+    </div>
+  </div>
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="map.js"></script>
+</body>
+</html>

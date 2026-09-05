@@ -15,10 +15,20 @@
         <span class="home-btn-label">Image Helper</span>
         <span class="home-btn-desc">Crop, enhance, and watermark images</span>
       </button>
+      <button class="home-btn" id="btn-place-images">
+        <span class="home-btn-icon">&#x1f5c2;</span>
+        <span class="home-btn-label">Place Images</span>
+        <span class="home-btn-desc">Browse places and fill in missing card/hero images</span>
+      </button>
       <button class="home-btn" id="btn-log-viewer">
         <span class="home-btn-icon">&#x1f4cb;</span>
         <span class="home-btn-label">Log Viewer</span>
         <span class="home-btn-desc">Browse and search visit logs</span>
+      </button>
+      <button class="home-btn" id="btn-map">
+        <span class="home-btn-icon">&#x1f5fa;</span>
+        <span class="home-btn-label">Place Map</span>
+        <span class="home-btn-desc">View places on a map by dataset</span>
       </button>
     </div>
   </div>
@@ -27,7 +37,9 @@
       window.location.href = page;
     }
     document.getElementById("btn-image-helper").addEventListener("click", () => navigate("index.html"));
+    document.getElementById("btn-place-images").addEventListener("click", () => navigate("place-images.html"));
     document.getElementById("btn-log-viewer").addEventListener("click", () => navigate("log-viewer.html"));
+    document.getElementById("btn-map").addEventListener("click", () => navigate("map.html"));
   </script>
 </body>
 </html>
