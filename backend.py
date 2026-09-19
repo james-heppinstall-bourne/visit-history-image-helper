@@ -516,7 +516,8 @@ class Api:
             while True:
                 result = (
                     client.table("places")
-                    .select("id, name, town, county, image_path, hero_image_path")
+                    .select("id, name, town, county, image_path, hero_image_path, "
+                            "official_website, website")
                     .order("name")
                     .range(offset, offset + PAGE_SIZE - 1)
                     .execute()

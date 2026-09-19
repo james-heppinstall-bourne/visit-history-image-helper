@@ -3387,3 +3387,31 @@ body {
 .pi-panel .pi-preview button[data-action="recrop"]:hover:not(:disabled) {
   background: #2470a0;
 }
+
+/* Place websites, opened in the system browser. Hidden when a place has no URL
+   for that field, so the bar doesn't carry dead buttons. */
+#pi-place-links {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+#pi-place-links .pi-link {
+  padding: 5px 10px;
+  border: 1px solid #0f3460;
+  border-radius: 4px;
+  background: #1a1a2e;
+  color: #8fb8e0;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+#pi-place-links .pi-link:hover {
+  background: #0f3460;
+  color: #eee;
+}
+
+#pi-place-links .pi-link[hidden] {
+  display: none;
+}

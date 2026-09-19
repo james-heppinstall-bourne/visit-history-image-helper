@@ -67,6 +67,7 @@ const searchInput = document.getElementById("pi-search");
 const filterSelect = document.getElementById("pi-filter");
 const placeNameEl = document.getElementById("pi-place-name");
 const placeMetaEl = document.getElementById("pi-place-meta");
+const placeLinkButtons = Array.from(document.querySelectorAll("#pi-place-links .pi-link"));
 const filenameInput = document.getElementById("pi-filename");
 const btnFindAll = document.getElementById("pi-find-all");
 const picker = document.getElementById("pi-picker");
@@ -1143,6 +1144,7 @@ async function selectPlace(place) {
   selectedPlace = place;
   placeNameEl.textContent = place.name;
   placeMetaEl.textContent = [place.town, place.county].filter(Boolean).join(", ");
+  renderPlaceLinks();
   filenameInput.disabled = false;
   filenameInput.value = slugify(place.name);
 
@@ -1150,6 +1152,32 @@ async function selectPlace(place) {
   renderList();
   setStatus(`${place.name} — card ${place.image_path ? "✓" : "missing"}, hero ${place.hero_image_path ? "✓" : "missing"}`);
 }
+
+// A place often has only one of the two URLs, so a button with nothing behind it
+// is hidden rather than left dead.
+function renderPlaceLinks() {
+  for (const btn of placeLinkButtons) {
+    const url = selectedPlace ? selectedPlace[btn.dataset.field] : null;
+    btn.hidden = !url;
+    btn.disabled = !url;
+    btn.title = url || "";
+  }
+}
+
+for (const btn of placeLinkButtons) {
+  btn.addEventListener("click", async () => {
+    const url = selectedPlace && selectedPlace[btn.dataset.field];
+    if (!url) return;
+    try {
+      const result = await pywebview.api.open_url(url);
+      if (result && result.error) setStatus("Error: " + result.error);
+    } catch (e) {
+      setStatus("Error opening link");
+    }
+  });
+}
+
+renderPlaceLinks();
 
 listEl.addEventListener("click", (e) => {
   const row = e.target.closest(".pi-row");
@@ -1219,6 +1247,7 @@ async function loadPlaces() {
       filenameInput.value = "";
       filenameInput.disabled = true;
     }
+    renderPlaceLinks();
   }
   renderList();
   for (const panel of Object.values(panels)) panel.render();

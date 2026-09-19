@@ -34,6 +34,11 @@
       <div id="pi-placebar">
         <div id="pi-place-name">Select a place</div>
         <div id="pi-place-meta"></div>
+        <!-- Opened in the system browser; a plain href would navigate the app window. -->
+        <div id="pi-place-links">
+          <button class="pi-link" data-field="official_website" disabled>Official site</button>
+          <button class="pi-link" data-field="website" disabled>Website</button>
+        </div>
         <button id="pi-find-all" class="pi-find" disabled>Find both with Claude</button>
         <label class="pi-field" title="Base filename. The hero is saved with a -hero suffix.">
           <span>File</span>
