@@ -48,6 +48,7 @@
           <span>File</span>
           <input id="pi-filename" type="text" placeholder="filename" disabled>
         </label>
+        <button id="pi-delete" title="Delete this place" hidden>Delete place</button>
       </div>
 
       <div id="pi-panels">
@@ -201,6 +202,18 @@
           <button id="pi-picker-close" title="Close (Esc)">✕</button>
         </div>
         <div id="pi-picker-grid"></div>
+      </div>
+
+      <div id="pi-delete-overlay" hidden>
+        <div id="pi-delete-dialog" role="dialog" aria-labelledby="pi-delete-title">
+          <div id="pi-delete-title">Delete place</div>
+          <div id="pi-delete-message"></div>
+          <div id="pi-delete-footer">
+            <span id="pi-delete-status"></span>
+            <button id="pi-delete-confirm" class="danger">Delete</button>
+            <button id="pi-delete-cancel">Cancel</button>
+          </div>
+        </div>
       </div>
     </main>
   </div>

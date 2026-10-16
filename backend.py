@@ -379,6 +379,43 @@ class Api:
         except Exception as e:
             return {"error": str(e)}
 
+    # Tables whose rows belong to users and point at a place. A place any of
+    # these still reference is not deleted: whatever the foreign key does on
+    # delete (cascade, set null) it would quietly change someone's data.
+    PLACE_REFERENCES = (
+        ("visits", "visit", "visits"),
+        ("wishlists", "wishlist entry", "wishlist entries"),
+    )
+
+    def delete_place(self, place_id):
+        """Deletes a place row. Refused while visits or wishlists point at it.
+        The image files are left in the bucket, as with clear_place_image."""
+        try:
+            client = self._get_supabase_client()
+            if client is None:
+                return {"error": "Supabase not configured"}
+            blockers = []
+            for table, one, many in self.PLACE_REFERENCES:
+                result = (
+                    client.table(table)
+                    .select("id", count="exact")
+                    .eq("place_id", place_id)
+                    .limit(1)
+                    .execute()
+                )
+                n = result.count or 0
+                if n:
+                    blockers.append(f"{n} {one if n == 1 else many}")
+            if blockers:
+                return {"error": "Still referenced by " + " and ".join(blockers)
+                                 + " - not deleted", "blocked": True}
+            result = client.table("places").delete().eq("id", place_id).execute()
+            if not result.data:
+                return {"error": "No place was deleted"}
+            return {"success": True}
+        except Exception as e:
+            return {"error": str(e)}
+
     def open_url(self, url):
         """Opens a place website in the system browser (the webview itself would
         navigate away from the app)."""

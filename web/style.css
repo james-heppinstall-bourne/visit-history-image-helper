@@ -3454,3 +3454,104 @@ body {
 #pi-place-links .pi-link[hidden] {
   display: none;
 }
+
+/* Pushed to the far end of the placebar, away from the everyday controls. */
+#pi-delete {
+  margin-left: auto;
+  padding: 5px 10px;
+  border: 1px solid #5a2a35;
+  border-radius: 4px;
+  background: transparent;
+  color: #e07a8d;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+#pi-delete:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+
+#pi-delete[hidden] {
+  display: none;
+}
+
+#pi-delete-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+#pi-delete-overlay[hidden] {
+  display: none;
+}
+
+#pi-delete-dialog {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  width: 440px;
+  max-width: 90vw;
+  overflow: hidden;
+}
+
+#pi-delete-title {
+  padding: 10px 16px;
+  border-bottom: 1px solid #0f3460;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#pi-delete-message {
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+#pi-delete-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid #0f3460;
+}
+
+#pi-delete-status {
+  flex: 1;
+  color: #fa6;
+  font-size: 12px;
+}
+
+#pi-delete-footer button {
+  padding: 6px 16px;
+  border: 1px solid #0f3460;
+  border-radius: 4px;
+  background: #0f3460;
+  color: #eee;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+#pi-delete-footer button:hover:not(:disabled) {
+  background: #1a5276;
+}
+
+#pi-delete-footer button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+#pi-delete-footer button.danger {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+#pi-delete-footer button.danger:hover:not(:disabled) {
+  background: #b91c1c;
+}

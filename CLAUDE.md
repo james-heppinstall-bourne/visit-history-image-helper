@@ -39,6 +39,12 @@ Both compose the same outputs through the same backend helpers (`apply_auto_enha
   Panels take a source from the file dialog, a paste, a drop, the other panel
   (`copy_slot_image`), or the place's stored image (`load_slot_image_from_url`).
 
+The placebar's **Delete place** removes the `places` row after a confirm dialog.
+`Api.delete_place` refuses while any `visits` or `wishlists` row points at the
+place (`PLACE_REFERENCES`) — whatever those foreign keys do on delete, it would
+change users' data — and the dialog shows the refusal with the counts. Image
+files stay in the bucket, as with Clear.
+
 Either panel can take the full width (the header's ⤢ toggle, or clicking the
 collapsed rail); `layoutMode` is "both" or the slot showing on its own. The
 canvas follows automatically via each stage's `ResizeObserver`, and

@@ -68,6 +68,12 @@ const filterSelect = document.getElementById("pi-filter");
 const placeNameEl = document.getElementById("pi-place-name");
 const placeNameInput = document.getElementById("pi-place-name-input");
 const btnRename = document.getElementById("pi-rename");
+const btnDelete = document.getElementById("pi-delete");
+const deleteOverlay = document.getElementById("pi-delete-overlay");
+const deleteMessage = document.getElementById("pi-delete-message");
+const deleteStatus = document.getElementById("pi-delete-status");
+const btnDeleteConfirm = document.getElementById("pi-delete-confirm");
+const btnDeleteCancel = document.getElementById("pi-delete-cancel");
 const placeMetaEl = document.getElementById("pi-place-meta");
 const placeLinkButtons = Array.from(document.querySelectorAll("#pi-place-links .pi-link"));
 const filenameInput = document.getElementById("pi-filename");
@@ -1187,6 +1193,7 @@ renderPlaceLinks();
 
 function renderRenamable() {
   btnRename.hidden = !selectedPlace;
+  btnDelete.hidden = !selectedPlace;
   placeNameEl.classList.toggle("renamable", !!selectedPlace);
   placeNameEl.title = selectedPlace ? "Click to rename" : "";
 }
@@ -1258,6 +1265,83 @@ placeNameInput.addEventListener("keydown", (e) => {
 });
 placeNameInput.addEventListener("blur", () => commitRename({ fromBlur: true }));
 
+// --- Delete ----------------------------------------------------------------
+// The backend refuses while visits or wishlists still point at the place, so
+// the dialog shows that refusal in place rather than closing on it.
+
+function openDelete() {
+  if (!selectedPlace) return;
+  if (Object.values(panels).some((p) => p.searching)) {
+    setStatus("Cancel the running search before deleting this place");
+    return;
+  }
+  endRename();
+  const place = selectedPlace;
+  const stored = ["card", "hero"].filter((slot) => place[TARGETS[slot].column]);
+  deleteMessage.textContent =
+    `Delete "${place.name}" from the database? This cannot be undone.` +
+    (stored.length
+      ? ` Its ${stored.map((s) => TARGETS[s].label.toLowerCase()).join(" and ")} image${stored.length > 1 ? "s stay" : " stays"} in the bucket.`
+      : "");
+  deleteStatus.textContent = "";
+  btnDeleteConfirm.disabled = false;
+  deleteOverlay.dataset.placeId = place.id;
+  deleteOverlay.hidden = false;
+  btnDeleteCancel.focus();
+}
+
+function closeDelete() {
+  deleteOverlay.hidden = true;
+  delete deleteOverlay.dataset.placeId;
+}
+
+async function confirmDelete() {
+  const place = places.find((p) => String(p.id) === deleteOverlay.dataset.placeId);
+  if (!place) return closeDelete();
+  btnDeleteConfirm.disabled = true;
+  deleteStatus.textContent = "Deleting…";
+  let result;
+  try {
+    result = await pywebview.api.delete_place(place.id);
+  } catch (e) {
+    result = { error: String(e) };
+  }
+  if (!result || result.error) {
+    deleteStatus.textContent = (result && result.error) || "Delete failed";
+    // A refusal won't change by retrying; anything else might.
+    btnDeleteConfirm.disabled = !!(result && result.blocked);
+    return;
+  }
+  closeDelete();
+  places = places.filter((p) => p !== place);
+  if (selectedPlace === place) {
+    selectedPlace = null;
+    placeNameEl.textContent = "Select a place";
+    placeMetaEl.textContent = "";
+    filenameInput.value = "";
+    filenameInput.disabled = true;
+    renderPlaceLinks();
+    renderRenamable();
+    for (const panel of Object.values(panels)) await panel.clearSource();
+  }
+  renderList();
+  setStatus(`Deleted ${place.name}`);
+}
+
+btnDelete.addEventListener("click", openDelete);
+btnDeleteCancel.addEventListener("click", closeDelete);
+btnDeleteConfirm.addEventListener("click", confirmDelete);
+deleteOverlay.addEventListener("click", (e) => {
+  if (e.target === deleteOverlay) closeDelete();
+});
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !deleteOverlay.hidden) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    closeDelete();
+  }
+}, true);
+
 listEl.addEventListener("click", (e) => {
   const row = e.target.closest(".pi-row");
   if (!row) return;
@@ -1291,7 +1375,7 @@ window.addEventListener("paste", async (e) => {
 
 // Arrow keys nudge the focused panel by a pixel.
 window.addEventListener("keydown", (e) => {
-  if (!picker.hidden) return;
+  if (!picker.hidden || !deleteOverlay.hidden) return;
   const tag = document.activeElement.tagName;
   if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
   const panel = focusedPanel;
