@@ -66,6 +66,8 @@ const countEl = document.getElementById("pi-count");
 const searchInput = document.getElementById("pi-search");
 const filterSelect = document.getElementById("pi-filter");
 const placeNameEl = document.getElementById("pi-place-name");
+const placeNameInput = document.getElementById("pi-place-name-input");
+const btnRename = document.getElementById("pi-rename");
 const placeMetaEl = document.getElementById("pi-place-meta");
 const placeLinkButtons = Array.from(document.querySelectorAll("#pi-place-links .pi-link"));
 const filenameInput = document.getElementById("pi-filename");
@@ -1141,8 +1143,10 @@ function renderList() {
 }
 
 async function selectPlace(place) {
+  endRename();
   selectedPlace = place;
   placeNameEl.textContent = place.name;
+  renderRenamable();
   placeMetaEl.textContent = [place.town, place.county].filter(Boolean).join(", ");
   renderPlaceLinks();
   filenameInput.disabled = false;
@@ -1178,6 +1182,81 @@ for (const btn of placeLinkButtons) {
 }
 
 renderPlaceLinks();
+
+// --- Rename ----------------------------------------------------------------
+
+function renderRenamable() {
+  btnRename.hidden = !selectedPlace;
+  placeNameEl.classList.toggle("renamable", !!selectedPlace);
+  placeNameEl.title = selectedPlace ? "Click to rename" : "";
+}
+
+function beginRename() {
+  if (!selectedPlace || !placeNameInput.hidden) return;
+  placeNameInput.value = selectedPlace.name;
+  placeNameInput.disabled = false;
+  placeNameEl.hidden = true;
+  btnRename.hidden = true;
+  placeNameInput.hidden = false;
+  placeNameInput.focus();
+  placeNameInput.select();
+}
+
+function endRename() {
+  placeNameInput.hidden = true;
+  placeNameEl.hidden = false;
+  renderRenamable();
+}
+
+async function commitRename({ fromBlur = false } = {}) {
+  if (placeNameInput.hidden || placeNameInput.disabled) return;
+  const place = selectedPlace;
+  const name = placeNameInput.value.trim();
+  if (!place || !name || name === place.name) {
+    endRename();
+    return;
+  }
+  placeNameInput.disabled = true;
+  setStatus(`Renaming ${place.name}…`);
+  let result;
+  try {
+    result = await pywebview.api.update_place_name(place.id, name);
+  } catch (e) {
+    result = { error: String(e) };
+  }
+  if (!result || result.error) {
+    // Leave the field open with what was typed so it can be fixed and retried;
+    // only take focus back if it was Enter, or a failed blur would trap it.
+    setStatus("Rename failed: " + ((result && result.error) || "unknown error"));
+    placeNameInput.disabled = false;
+    if (!fromBlur) placeNameInput.focus();
+    return;
+  }
+  const oldName = place.name;
+  place.name = result.name || name;
+  // The filename follows the name unless it has been typed over by hand.
+  if (selectedPlace === place && filenameInput.value === slugify(oldName)) {
+    filenameInput.value = slugify(place.name);
+  }
+  places.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  if (selectedPlace === place) placeNameEl.textContent = place.name;
+  endRename();
+  renderList();
+  setStatus(`Renamed ${oldName} → ${place.name}`);
+}
+
+placeNameEl.addEventListener("click", beginRename);
+btnRename.addEventListener("click", beginRename);
+placeNameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    commitRename();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    endRename();
+  }
+});
+placeNameInput.addEventListener("blur", () => commitRename({ fromBlur: true }));
 
 listEl.addEventListener("click", (e) => {
   const row = e.target.closest(".pi-row");
@@ -1240,14 +1319,18 @@ async function loadPlaces() {
   }
   // Keep the selection pointed at the refreshed row.
   if (selectedPlace) {
+    endRename();
     selectedPlace = places.find((p) => p.id === selectedPlace.id) || null;
     if (!selectedPlace) {
       placeNameEl.textContent = "Select a place";
       placeMetaEl.textContent = "";
       filenameInput.value = "";
       filenameInput.disabled = true;
+    } else {
+      placeNameEl.textContent = selectedPlace.name;
     }
     renderPlaceLinks();
+    renderRenamable();
   }
   renderList();
   for (const panel of Object.values(panels)) panel.render();

@@ -32,7 +32,11 @@
 
     <main id="pi-main">
       <div id="pi-placebar">
-        <div id="pi-place-name">Select a place</div>
+        <div id="pi-place-title">
+          <div id="pi-place-name">Select a place</div>
+          <input id="pi-place-name-input" type="text" autocomplete="off" hidden>
+          <button id="pi-rename" title="Rename this place (Enter saves, Esc cancels)" hidden>✎</button>
+        </div>
         <div id="pi-place-meta"></div>
         <!-- Opened in the system browser; a plain href would navigate the app window. -->
         <div id="pi-place-links">

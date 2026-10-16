@@ -359,6 +359,26 @@ class Api:
         except Exception as e:
             return {"error": str(e)}
 
+    def update_place_name(self, place_id, name):
+        name = (name or "").strip()
+        if not name:
+            return {"error": "A place needs a name"}
+        try:
+            client = self._get_supabase_client()
+            if client is None:
+                return {"error": "Supabase not configured"}
+            result = (
+                client.table("places")
+                .update({"name": name})
+                .eq("id", place_id)
+                .execute()
+            )
+            if not result.data:
+                return {"error": "No place was updated"}
+            return {"success": True, "name": result.data[0].get("name", name)}
+        except Exception as e:
+            return {"error": str(e)}
+
     def open_url(self, url):
         """Opens a place website in the system browser (the webview itself would
         navigate away from the app)."""
