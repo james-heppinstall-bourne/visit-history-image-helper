@@ -20,6 +20,19 @@ Pywebview desktop app for cropping images to a fixed aspect ratio with auto-enha
   way out and translated back for the level filter; each row carries
   `log_source`. Web rows are matched to a user by `user_id` *or*
   `context.userId`, since the site often records the user only in context.
+  **Subscriptions come from four tables, merged one row per user** in
+  `Api._merged_subscriptions`, which both the dashboard chart and the
+  Subscriptions tab read. `public.subscriptions` is only the phone's report of
+  a store purchase: a web (Stripe) purchase never reaches it, and the app
+  writes that user a row saying `is_subscribed = false` because the phone has
+  no receipt. Until 29 Oct 2026 the viewer read that table alone, so every
+  web subscriber was missing. The others are `stripe_subscriptions` (live mode
+  only, since the database is shared with local test purchases),
+  `stripe_payments` where `kind = 'lifetime'`, and `store_subscriptions`
+  (production only). Precedence follows the website's `get_my_entitlement()`:
+  Stripe, then the verified store row, then the mirror, and anyone active in
+  any source is active. A new place a subscription can be recorded needs
+  adding here too. Lifetime granted by hand in `app_metadata` is not counted
 - `web/map.html` + `web/map.js` — Place Map
 - `web/style.css` — Dark theme styles for every page
 - `config.json` — Runtime config (crop dimensions, output folder, webp quality); auto-created on first run
@@ -240,7 +253,10 @@ Requires Python 3.9+.
 python -m PyInstaller build.spec
 ```
 
-Output goes to `dist/`.
+Output goes to `dist/`, as the one file `dist/ImageCropHelper.exe`, which is
+what James actually runs. Close the app first: Windows will not let PyInstaller
+overwrite an exe that is running. A change to the Python or the web files is
+not live until the exe is rebuilt.
 
 ## Key conventions
 
