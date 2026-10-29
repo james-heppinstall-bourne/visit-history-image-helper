@@ -1491,87 +1491,192 @@ class Api:
             )
         return text
 
-    def get_subscription_starts(self):
-        """Every row that has ever subscribed, for the dashboard chart.
+    # Stripe statuses that entitle, as get_my_entitlement() reads them. A
+    # cancellation leaves status active until the period ends, so
+    # cancel_at_period_end is shown, never treated as lapsed.
+    _STRIPE_ENTITLING = ("active", "trialing", "past_due")
+    # store_subscriptions statuses that entitle (cancelled runs to expires_at)
+    _STORE_ENTITLING = ("active", "grace", "cancelled")
 
-        Returns the whole table (paged internally) rather than a page, so the
-        frontend can re-bucket by date range without another round-trip.
+    @staticmethod
+    def _fetch_all(client, table, columns, apply=None):
+        rows = []
+        page_size = 1000
+        offset = 0
+        while True:
+            query = client.table(table).select(columns)
+            if apply is not None:
+                query = apply(query)
+            batch = query.range(offset, offset + page_size - 1).execute().data or []
+            rows.extend(batch)
+            if len(batch) < page_size:
+                return rows
+            offset += page_size
+
+    @staticmethod
+    def _subscription_type(product_id, interval=None):
+        if interval == "year" or "yearly" in product_id:
+            return "yearly"
+        if interval == "month" or "monthly" in product_id:
+            return "monthly"
+        return "unknown"
+
+    def _merged_subscriptions(self, client):
+        """One row per user, merged from every place a subscription lives.
+
+        public.subscriptions is only what the phone reports about a store
+        purchase. A web purchase never reaches it (the app leaves that user's
+        row is_subscribed = false, because the phone holds no receipt): it is
+        in stripe_subscriptions, a web lifetime is in stripe_payments, and
+        store notifications verified server-side are in store_subscriptions.
+        Reading the mirror alone left every web subscriber off the dashboard
+        and the list.
+
+        Precedence follows get_my_entitlement(): Stripe, then the verified
+        store row, then the mirror. A user is active if any source says so.
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        merged = {}
+
+        def put(row, rank):
+            user_id = row["user_id"]
+            if not user_id:
+                return
+            current = merged.get(user_id)
+            if current is None:
+                merged[user_id] = dict(row, _rank=rank)
+                return
+            starts = [d for d in (current["first_subscribed_at"], row["first_subscribed_at"]) if d]
+            active = current["is_subscribed"] or row["is_subscribed"]
+            # The row shown is the highest-precedence active one, or the
+            # highest-precedence row at all when none is active
+            if (row["is_subscribed"], -rank) > (current["is_subscribed"], -current["_rank"]):
+                merged[user_id] = dict(row, _rank=rank)
+            merged[user_id]["first_subscribed_at"] = min(starts) if starts else None
+            merged[user_id]["is_subscribed"] = active
+
+        for row in self._fetch_all(
+            client, "subscriptions",
+            "user_id, is_subscribed, product_id, expires_at, platform,"
+            " first_subscribed_at, last_checked_at, updated_at",
+        ):
+            product_id = row.get("product_id") or ""
+            put({
+                "user_id": row.get("user_id"),
+                "is_subscribed": bool(row.get("is_subscribed")),
+                "product_id": product_id,
+                "subscription_type": self._subscription_type(product_id),
+                "expires_at": row.get("expires_at"),
+                "platform": row.get("platform") or "",
+                "first_subscribed_at": row.get("first_subscribed_at"),
+                "last_checked_at": row.get("last_checked_at"),
+                "updated_at": row.get("updated_at"),
+            }, rank=3)
+
+        # Production only: a sandbox row never entitles anyone in production
+        for row in self._fetch_all(
+            client, "store_subscriptions",
+            "user_id, provider, product_id, status, expires_at, updated_at",
+            lambda q: q.eq("environment", "production"),
+        ):
+            product_id = row.get("product_id") or ""
+            expires_at = row.get("expires_at")
+            put({
+                "user_id": row.get("user_id"),
+                "is_subscribed": row.get("status") in self._STORE_ENTITLING
+                    and (expires_at is None or expires_at > now),
+                "product_id": product_id,
+                "subscription_type": self._subscription_type(product_id),
+                "expires_at": expires_at,
+                "platform": {"apple": "iOS", "google": "Android"}.get(row.get("provider"), ""),
+                "first_subscribed_at": None,
+                "last_checked_at": None,
+                "updated_at": row.get("updated_at"),
+            }, rank=2)
+
+        # Live mode only: the database is shared with local test purchases
+        for row in self._fetch_all(
+            client, "stripe_subscriptions",
+            "user_id, status, price_id, billing_interval, current_period_end,"
+            " cancel_at_period_end, first_subscribed_at, updated_at",
+            lambda q: q.eq("livemode", True),
+        ):
+            put({
+                "user_id": row.get("user_id"),
+                "is_subscribed": row.get("status") in self._STRIPE_ENTITLING,
+                "product_id": row.get("price_id") or "",
+                "subscription_type": self._subscription_type("", row.get("billing_interval")),
+                "expires_at": row.get("current_period_end"),
+                "platform": "Web (cancelling)" if row.get("cancel_at_period_end") else "Web",
+                "first_subscribed_at": row.get("first_subscribed_at"),
+                "last_checked_at": None,
+                "updated_at": row.get("updated_at"),
+            }, rank=1)
+
+        # A lifetime bought on the web is a one-off payment, not a subscription
+        for row in self._fetch_all(
+            client, "stripe_payments",
+            "user_id, created_at",
+            lambda q: q.eq("kind", "lifetime").eq("status", "paid"),
+        ):
+            put({
+                "user_id": row.get("user_id"),
+                "is_subscribed": True,
+                "product_id": "lifetime",
+                "subscription_type": "lifetime",
+                "expires_at": None,
+                "platform": "Web",
+                "first_subscribed_at": row.get("created_at"),
+                "last_checked_at": None,
+                "updated_at": row.get("created_at"),
+            }, rank=0)
+
+        rows = list(merged.values())
+        for row in rows:
+            row.pop("_rank", None)
+        return rows
+
+    def get_subscription_starts(self):
+        """Every user who has ever subscribed, for the dashboard chart.
+
+        Returns them all rather than a page, so the frontend can re-bucket by
+        date range without another round-trip.
         """
         try:
             client = self._get_supabase_client()
             if client is None:
                 return {"subscriptions": [], "error": "Supabase not configured"}
-            rows = []
-            page_size = 1000
-            offset = 0
-            while True:
-                result = (
-                    client.table("subscriptions")
-                    .select("user_id, first_subscribed_at, product_id, is_subscribed")
-                    .not_.is_("first_subscribed_at", "null")
-                    .order("first_subscribed_at", desc=True)
-                    .range(offset, offset + page_size - 1)
-                    .execute()
-                )
-                batch = result.data or []
-                rows.extend(batch)
-                if len(batch) < page_size:
-                    break
-                offset += page_size
+            rows = [r for r in self._merged_subscriptions(client) if r["first_subscribed_at"]]
+            rows.sort(key=lambda r: r["first_subscribed_at"], reverse=True)
             return {"subscriptions": rows}
         except Exception as e:
             return {"subscriptions": [], "error": str(e)}
 
     def get_subscriptions(self, page=1, page_size=50, status="active"):
-        """Current subscription state from public.subscriptions (one row per user).
+        """Current subscription state, one row per user, from every source.
 
         status: "active" (is_subscribed), "lapsed" (not is_subscribed), or "" for all.
+        Paged here rather than in the query: the merge needs every table, and
+        they are small.
         """
         try:
             client = self._get_supabase_client()
             if client is None:
                 return {"subscriptions": [], "error": "Supabase not configured"}
-            offset = (page - 1) * page_size
-
-            query = client.table("subscriptions").select(
-                "user_id, is_subscribed, product_id, expires_at, platform,"
-                " first_subscribed_at, last_checked_at, updated_at"
-            )
+            rows = self._merged_subscriptions(client)
             if status == "active":
-                query = query.eq("is_subscribed", True)
+                rows = [r for r in rows if r["is_subscribed"]]
             elif status == "lapsed":
-                query = query.eq("is_subscribed", False)
-
-            result = (
-                query
-                # Newest subscribers first; rows that never subscribed have a
-                # null first_subscribed_at and sort to the bottom
-                .order("first_subscribed_at", desc=True, nullsfirst=False)
-                .range(offset, offset + page_size - 1)
-                .execute()
-            )
-
-            subscriptions = []
-            for row in (result.data or []):
-                product_id = row.get("product_id") or ""
-                if "yearly" in product_id:
-                    sub_type = "yearly"
-                elif "monthly" in product_id:
-                    sub_type = "monthly"
-                else:
-                    sub_type = "unknown"
-                subscriptions.append({
-                    "user_id": row.get("user_id"),
-                    "is_subscribed": bool(row.get("is_subscribed")),
-                    "product_id": product_id,
-                    "subscription_type": sub_type,
-                    "expires_at": row.get("expires_at"),
-                    "platform": row.get("platform") or "",
-                    "first_subscribed_at": row.get("first_subscribed_at"),
-                    "last_checked_at": row.get("last_checked_at"),
-                    "updated_at": row.get("updated_at"),
-                })
-            return {"subscriptions": subscriptions, "page": page, "page_size": page_size}
+                rows = [r for r in rows if not r["is_subscribed"]]
+            # Newest subscribers first; rows that never subscribed have no
+            # first_subscribed_at and sort to the bottom
+            rows.sort(key=lambda r: r["first_subscribed_at"] or "", reverse=True)
+            offset = (page - 1) * page_size
+            return {
+                "subscriptions": rows[offset:offset + page_size],
+                "page": page,
+                "page_size": page_size,
+            }
         except Exception as e:
             return {"subscriptions": [], "error": str(e)}
 

@@ -996,6 +996,11 @@ body {
   color: #6af;
 }
 
+.sub-type-lifetime {
+  background: #3a2a1a;
+  color: #fc6;
+}
+
 .sub-type-unknown {
   background: #333;
   color: #999;
