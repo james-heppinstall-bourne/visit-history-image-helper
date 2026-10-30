@@ -13,6 +13,7 @@ import webview
 from PIL import Image, ImageEnhance, ImageOps
 
 import finder
+from email_api import EmailApi
 
 try:
     from supabase import create_client, Client as SupabaseClient
@@ -171,7 +172,7 @@ def save_config(cfg):
         json.dump(cfg, f, indent=2)
 
 
-class Api:
+class Api(EmailApi):
     def __init__(self):
         self._window = None
         self._current_image_path = None

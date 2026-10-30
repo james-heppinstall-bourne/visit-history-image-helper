@@ -30,6 +30,11 @@
         <span class="home-btn-label">Place Map</span>
         <span class="home-btn-desc">View places on a map by dataset</span>
       </button>
+      <button class="home-btn" id="btn-email">
+        <span class="home-btn-icon">&#x2709;</span>
+        <span class="home-btn-label">Email</span>
+        <span class="home-btn-desc">Email a group of users, then read the result</span>
+      </button>
     </div>
   </div>
   <script>
@@ -40,6 +45,7 @@
     document.getElementById("btn-place-images").addEventListener("click", () => navigate("place-images.html"));
     document.getElementById("btn-log-viewer").addEventListener("click", () => navigate("log-viewer.html"));
     document.getElementById("btn-map").addEventListener("click", () => navigate("map.html"));
+    document.getElementById("btn-email").addEventListener("click", () => navigate("email.html"));
   </script>
 </body>
 </html>

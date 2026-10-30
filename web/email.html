@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Email</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="toolbar">
+    <button id="btn-back">Back</button>
+    <span id="toolbar-title">Email</span>
+    <span id="status-text">Loading...</span>
+  </div>
+  <div id="log-tabs">
+    <button class="tab-btn active" data-tab="recipients">Recipients</button>
+    <button class="tab-btn" data-tab="message">Message</button>
+    <button class="tab-btn" data-tab="send">Send</button>
+    <button class="tab-btn" data-tab="results">Results</button>
+  </div>
+  <div id="log-layout">
+
+    <!-- Recipients -->
+    <div id="tab-recipients" class="tab-content active em-split">
+      <div class="em-side">
+        <div class="em-section-title">From the database</div>
+        <p class="em-hint">Each account is in exactly one group, decided the way the website decides who has access. Admins and test accounts are left out.</p>
+        <div id="em-segments"></div>
+        <label class="em-check"><input type="checkbox" id="em-include-admins"> Include admin accounts (for a test send to yourself)</label>
+        <div class="em-row">
+          <button class="em-btn em-primary" id="em-use-segments">Use these</button>
+          <button class="em-btn" id="em-refresh">Refresh counts</button>
+        </div>
+        <p class="em-hint" id="em-read-at"></p>
+
+        <div class="em-section-title em-gap">Unsubscribed</div>
+        <div id="em-optout-state"></div>
+        <div class="em-row">
+          <input type="text" id="em-optout-address" placeholder="Address that asked to be removed">
+          <button class="em-btn" id="em-optout-add">Add</button>
+        </div>
+        <p class="em-hint">Taken off every send, and never cleared. After adding someone, copy the file to the backup again.</p>
+      </div>
+      <div class="em-main">
+        <div class="em-section-title">The list</div>
+        <p class="em-hint">One address per line. You can paste your own as well as, or instead of, a group from the database.</p>
+        <textarea id="em-recipients" spellcheck="false"></textarea>
+        <div class="em-counts" id="em-counts"></div>
+        <div class="em-row">
+          <button class="em-btn" id="em-clean">Clean and de-duplicate</button>
+          <button class="em-btn" id="em-remove-sent">Remove already sent and unsubscribed</button>
+          <button class="em-btn em-right" id="em-clear">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Message -->
+    <div id="tab-message" class="tab-content em-split">
+      <div class="em-main">
+        <div class="em-grid">
+          <label for="em-subject">Subject</label><input type="text" id="em-subject" data-save="subject">
+          <label for="em-sender">From</label><input type="text" id="em-sender" data-save="sender" placeholder="Visit History <support@visithistory.online>">
+          <label for="em-reply-to">Reply-To</label><input type="text" id="em-reply-to" data-save="reply_to" placeholder="optional">
+          <label for="em-unsubscribe">Unsubscribe address</label><input type="text" id="em-unsubscribe" data-save="unsubscribe" placeholder="support@visithistory.online">
+        </div>
+        <div class="em-bodies">
+          <div class="em-body">
+            <div class="em-body-head"><span>Plain text (always sent)</span><button class="em-btn" id="em-load-text">Load file…</button></div>
+            <textarea id="em-text" data-save="text_body" spellcheck="false"></textarea>
+          </div>
+          <div class="em-body">
+            <div class="em-body-head"><span>HTML (optional)</span><button class="em-btn" id="em-load-html">Load file…</button></div>
+            <textarea id="em-html" data-save="html_body" spellcheck="false"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="em-preview">
+        <div class="em-section-title">How the HTML looks</div>
+        <iframe id="em-preview" sandbox title="HTML preview"></iframe>
+      </div>
+    </div>
+
+    <!-- Send -->
+    <div id="tab-send" class="tab-content em-split">
+      <div class="em-side">
+        <div class="em-section-title">Campaign</div>
+        <div id="em-campaign-state"></div>
+        <div class="em-row">
+          <input type="text" id="em-campaign-name" placeholder="New campaign name, e.g. whats-new-nov26">
+          <button class="em-btn" id="em-campaign-new">Start new</button>
+        </div>
+        <p class="em-hint">Each campaign has its own sent log. Anyone in it is skipped, so a run that stops part way resumes without sending twice. Start a new one for every new email, or the people the last one reached are left out.</p>
+
+        <div class="em-section-title em-gap">IONOS SMTP</div>
+        <div class="em-grid">
+          <label for="em-host">Host</label><input type="text" id="em-host" data-save="host">
+          <label for="em-port">Port</label><input type="text" id="em-port" data-save="port">
+          <label for="em-user">Mailbox</label><input type="text" id="em-user" data-save="user">
+          <label for="em-password">Password</label><input type="password" id="em-password" autocomplete="off">
+        </div>
+        <p class="em-hint" id="em-password-hint">Never saved. Typed each session, or set IONOS_SMTP_PASSWORD.</p>
+        <div class="em-row"><button class="em-btn" id="em-test-connection">Test connection (sends nothing)</button></div>
+
+        <div class="em-section-title em-gap">Pacing</div>
+        <div class="em-grid">
+          <label for="em-delay">Seconds between</label><input type="text" id="em-delay" data-save="delay">
+          <label for="em-limit">Most per run</label><input type="text" id="em-limit" data-save="limit">
+          <label for="em-reconnect">Reconnect every</label><input type="text" id="em-reconnect" data-save="reconnect_every">
+        </div>
+        <p class="em-hint">September found IONOS does not throttle at 150 a run.</p>
+
+        <div class="em-section-title em-gap">Test first</div>
+        <div class="em-row">
+          <input type="text" id="em-test-address" data-save="test_address" placeholder="your address, or a mail-tester one">
+          <button class="em-btn" id="em-send-test">Send one test</button>
+        </div>
+        <p class="em-hint">For the spam check, open <a href="#" id="em-mail-tester">mail-tester.com</a>, paste the one-off address it shows here, send, then read the score. Tests are never written to the sent log.</p>
+      </div>
+      <div class="em-main">
+        <div class="em-row">
+          <button class="em-btn" id="em-dry-run">Dry run</button>
+          <button class="em-btn em-primary" id="em-send-batch">Send batch</button>
+          <button class="em-btn em-danger" id="em-stop" disabled>Stop</button>
+        </div>
+        <div class="em-progress"><div id="em-progress-bar"></div></div>
+        <pre id="em-log"></pre>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="tab-results" class="tab-content em-split">
+      <div class="em-side">
+        <div class="em-section-title">Who</div>
+        <label class="em-check"><input type="radio" name="em-source" value="log" checked> Everyone in the sent log</label>
+        <label class="em-check"><input type="radio" name="em-source" value="list"> Everyone in the list (before sending)</label>
+
+        <div class="em-section-title em-gap">When</div>
+        <div class="em-grid">
+          <label for="em-since">From</label><input type="date" id="em-since">
+          <label for="em-until">Until</label><input type="date" id="em-until">
+        </div>
+        <p class="em-hint">Leave Until empty to read up to now.</p>
+        <div class="em-row">
+          <button class="em-btn" id="em-preset-baseline">Baseline: 14 days before today</button>
+        </div>
+        <div class="em-row">
+          <button class="em-btn em-primary" id="em-read">Read</button>
+        </div>
+        <p class="em-hint">Take the baseline on the day you send, over the list. Read the result within 14 days of sending: web_logs deletes info rows at 14 days, so map opens older than that are undercounted.</p>
+      </div>
+      <div class="em-main">
+        <div id="em-results"><p class="em-hint">Nothing read yet.</p></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- The only way a batch goes out. The Send button stays disabled until the
+       number of people is typed, and the backend checks that number again. -->
+  <div id="em-confirm" class="em-modal" hidden>
+    <div class="em-modal-box" role="dialog" aria-modal="true" aria-labelledby="em-confirm-title">
+      <div class="em-modal-title" id="em-confirm-title">Send this email?</div>
+      <div id="em-confirm-body"></div>
+      <label class="em-confirm-label" for="em-confirm-input" id="em-confirm-label"></label>
+      <input type="text" id="em-confirm-input" autocomplete="off" inputmode="numeric">
+      <div class="em-row em-modal-buttons">
+        <button class="em-btn" id="em-confirm-cancel">Cancel</button>
+        <button class="em-btn em-danger" id="em-confirm-send" disabled>Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="email.js"></script>
+</body>
+</html>

@@ -34,6 +34,7 @@ Pywebview desktop app for cropping images to a fixed aspect ratio with auto-enha
   any source is active. A new place a subscription can be recorded needs
   adding here too. Lifetime granted by hand in `app_metadata` is not counted
 - `web/map.html` + `web/map.js` — Place Map
+- `web/email.html` + `web/email.js` — Email: choose a group of users, write, send, read the result. The Python side is `email_api.py` (mixed into `Api`), `audience.py` and `mailer_core.py`; see **Email** below
 - `web/style.css` — Dark theme styles for every page
 - `config.json` — Runtime config (crop dimensions, output folder, webp quality); auto-created on first run
 
@@ -222,6 +223,48 @@ frontend polls `get_find_status(slot, since)`; `cancel_find()` stops it at the
 next checkpoint. Requires an Anthropic API key in `config.json`
 (`anthropic_api_key`) or `ANTHROPIC_API_KEY`; `finder_ready()` tells the UI why
 the button is disabled rather than failing a minute into a search.
+
+## Email
+
+Campaign email to users, done here so nothing has to be run from a terminal.
+Moved from the website repo on 30 Oct 2026, where it was a tkinter app
+(`scripts/bulk_mailer.py`) plus two Node scripts. Four tabs:
+
+- **Recipients.** The four groups come from `audience.py`, which puts every
+  account in exactly one of `subscribers`, `trial`, `lapsed-paid` and
+  `lapsed-trial` by restating the website's `get_my_entitlement()` precedence
+  (exempt, Stripe, verified store row, store mirror, paid group, trial,
+  nothing). That function reads `auth.uid()` and cannot be asked about anyone
+  else, so if it changes, `classify()` must follow. It is deliberately not
+  `_merged_subscriptions`, which counts anyone active in any source and knows
+  nothing of trials or groups. Admins and test addresses (`NOT_A_PERSON`) are
+  left out. The list is a plain textarea, so a hand-pasted list works too.
+- **Message.** Subject, From, Reply-To, the List-Unsubscribe address, and both
+  bodies, with a live HTML preview in a sandboxed iframe.
+- **Send.** **A batch only goes through a confirmation box that shows the
+  subject, campaign, count and first addresses, and stays disabled until the
+  number of people is typed.** `email_send` checks that number again against
+  what it is about to send and refuses on any difference, so no stray click,
+  script or changed list can send a batch without it. A test send is a plain
+  yes/no and is never written to the sent log.
+- **Results.** What a set of addresses did in a window: map opens, visits,
+  My sites layers and sites made, subscriptions started. Run it over the list
+  with an end date on the day of sending for a baseline, then over the sent
+  log within 14 days, because `web_logs` prunes info rows at 14 days.
+
+State lives where the tkinter mailer kept it, in
+`%LOCALAPPDATA%\VisitHistory\bulk-mailer\` (settings, sent logs, opt-out
+list), never in a repo, because it holds addresses. **Each campaign gets its
+own sent log** (`sent-<name>.log`, "Start new" on the Send tab). The sent log
+is what stops a resumed run sending twice, so a campaign left on the previous
+one's log silently skips everyone that one reached; the page shows which log
+is in use and how many addresses it holds. `unsubscribed.txt` is never
+cleared, and the page warns when it is missing or differs from the backup at
+`E:\backups\visit-history-mailer\unsubscribed.txt`. The SMTP password is never
+saved: typed each session, or `IONOS_SMTP_PASSWORD`.
+
+`mailer_core.py` is a copy of the website repo's, made when this page was
+built. While that copy exists, a fix to one must go into the other.
 
 ## Output targets
 
