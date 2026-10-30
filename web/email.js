@@ -1,8 +1,20 @@
 // Email: choose who, write it, send it, read what it did.
 // The Python side is email_api.py; sending itself is mailer_core.py.
 
+// Subscribers are split by why they have access, in the order the website
+// decides it. Ticking Subscribers ticks them all.
+const SUBSCRIBER_TYPES = [
+  { id: "stripe", label: "Web (Stripe)", desc: "Paying on the website" },
+  { id: "store", label: "App store, verified", desc: "Store purchase the store itself has confirmed" },
+  { id: "mirror", label: "App store, reported by the phone", desc: "Only the phone says so. Can include someone who has cancelled" },
+  { id: "group", label: "Paid group", desc: "Covered by their group's payment" },
+  { id: "lifetime", label: "Lifetime", desc: "Bought lifetime access" },
+  { id: "complimentary", label: "Complimentary", desc: "Given access free" },
+  { id: "admin", label: "Admin", desc: "You. Only listed when admin accounts are included" },
+];
+
 const SEGMENTS = [
-  { id: "subscribers", label: "Subscribers", desc: "Paying now, or given access: lifetime, complimentary or a paid group" },
+  { id: "subscribers", label: "Subscribers", desc: "Paying now, or given access" },
   { id: "trial", label: "On a free week", desc: "Inside their seven days now, and not paying" },
   { id: "lapsed-paid", label: "Paid once, lapsed", desc: "Subscribed at some point, no access now" },
   { id: "lapsed-trial", label: "Tried it, never paid", desc: "Free week over, never subscribed" },
@@ -132,22 +144,60 @@ $("em-optout-add").addEventListener("click", async () => {
 
 // ---------------------------------------------------------------- recipients
 
-function renderSegments() {
-  const box = $("em-segments");
-  box.innerHTML = SEGMENTS.map((s) => {
-    const n = audience ? audience.segments[s.id].length : "…";
-    const reasons = audience && s.id === "subscribers"
-      ? Object.entries(audience.reasons[s.id]).map(([k, v]) => `${k} ${v}`).join(", ")
-      : "";
-    return `<label class="em-segment">
-      <input type="checkbox" value="${s.id}" ${s.id === "subscribers" ? "checked" : ""}>
-      <span class="em-segment-text">
-        <span class="em-segment-label">${s.label} <span class="em-segment-count">${n}</span></span>
-        <span class="em-segment-desc">${s.desc}${reasons ? ` (${escapeHtml(reasons)})` : ""}</span>
-      </span>
-    </label>`;
-  }).join("");
+// What is ticked, kept across a refresh. Every subscriber type to start with.
+const ticked = new Set(SUBSCRIBER_TYPES.filter((t) => t.id !== "admin").map((t) => "sub:" + t.id));
+
+function segmentRow(key, label, desc, n, extraClass = "") {
+  return `<label class="em-segment ${extraClass}">
+    <input type="checkbox" data-key="${key}" ${ticked.has(key) ? "checked" : ""}>
+    <span class="em-segment-text">
+      <span class="em-segment-label">${label} <span class="em-segment-count">${n}</span></span>
+      <span class="em-segment-desc">${desc}</span>
+    </span>
+  </label>`;
 }
+
+function renderSegments() {
+  const count = (list) => (audience ? list.length : "…");
+  const showAdmin = $("em-include-admins").checked;
+  const types = SUBSCRIBER_TYPES.filter((t) => t.id !== "admin" || showAdmin);
+  if (!showAdmin) ticked.delete("sub:admin");
+  $("em-segments").innerHTML = SEGMENTS.map((s) => {
+    const n = count(audience ? audience.segments[s.id] : []);
+    if (s.id !== "subscribers") return segmentRow(s.id, s.label, s.desc, n);
+    return segmentRow("subscribers", s.label, s.desc, n, "em-parent") +
+      `<div class="em-children">` +
+      types.map((t) => segmentRow("sub:" + t.id, t.label, t.desc,
+        count(audience ? audience.subscriber_types[t.id] : []))).join("") +
+      `</div>`;
+  }).join("");
+  syncParent();
+}
+
+// The Subscribers box is ticked when every type is, and half-ticked when some are.
+function syncParent() {
+  const parent = document.querySelector('#em-segments input[data-key="subscribers"]');
+  const children = [...document.querySelectorAll('#em-segments input[data-key^="sub:"]')];
+  const on = children.filter((c) => c.checked).length;
+  parent.checked = on === children.length && on > 0;
+  parent.indeterminate = on > 0 && on < children.length;
+}
+
+$("em-segments").addEventListener("change", (e) => {
+  const key = e.target.dataset.key;
+  if (!key) return;
+  if (key === "subscribers") {
+    document.querySelectorAll('#em-segments input[data-key^="sub:"]').forEach((c) => {
+      c.checked = e.target.checked;
+      if (c.checked) ticked.add(c.dataset.key); else ticked.delete(c.dataset.key);
+    });
+  } else if (e.target.checked) {
+    ticked.add(key);
+  } else {
+    ticked.delete(key);
+  }
+  syncParent();
+});
 
 async function loadAudience() {
   setStatus("Reading accounts...");
@@ -171,9 +221,18 @@ $("em-include-admins").addEventListener("change", loadAudience);
 
 $("em-use-segments").addEventListener("click", () => {
   if (!audience) return;
-  const chosen = [...document.querySelectorAll("#em-segments input:checked")].map((i) => i.value);
+  // Subscribers are taken from the ticked types, never the parent, so a
+  // half-ticked Subscribers box sends only to the types that are ticked.
+  const keys = [...ticked];
+  const lists = keys.map((k) => (k.startsWith("sub:")
+    ? audience.subscriber_types[k.slice(4)] || []
+    : k === "subscribers" ? [] : audience.segments[k] || []));
+  const chosen = keys.map((k) => {
+    if (k.startsWith("sub:")) return SUBSCRIBER_TYPES.find((t) => t.id === k.slice(4)).label;
+    return SEGMENTS.find((s) => s.id === k).label;
+  });
   if (!chosen.length) { alert("Tick at least one group."); return; }
-  const addresses = [...new Set(chosen.flatMap((id) => audience.segments[id]))].sort();
+  const addresses = [...new Set(lists.flat())].sort();
   const current = $("em-recipients").value.trim();
   if (current && !confirm(`Replace the current list with ${addresses.length} addresses?`)) return;
   $("em-recipients").value = addresses.join("\n");

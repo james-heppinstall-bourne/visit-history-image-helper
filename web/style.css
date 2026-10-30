@@ -3905,3 +3905,12 @@ body {
   justify-content: flex-end;
   margin-bottom: 0;
 }
+
+.em-children {
+  margin: -2px 0 8px 22px;
+}
+
+.em-children .em-segment {
+  padding: 5px 8px;
+  margin-bottom: 4px;
+}

@@ -236,7 +236,12 @@ there since. Four tabs:
   `lapsed-trial` by restating the website's `get_my_entitlement()` precedence
   (exempt, Stripe, verified store row, store mirror, paid group, trial,
   nothing). That function reads `auth.uid()` and cannot be asked about anyone
-  else, so if it changes, `classify()` must follow. It is deliberately not
+  else, so if it changes, `classify()` must follow. Subscribers are split
+  again by type (`SUBSCRIBER_TYPES`), each its own checkbox under a parent
+  that ticks them all: Stripe, store verified, store reported by the phone
+  (the mirror, which can still include someone who has cancelled), paid
+  group, lifetime, complimentary, and admin. The function lumps the last
+  three together as "exempt"; for email they are different people. It is deliberately not
   `_merged_subscriptions`, which counts anyone active in any source and knows
   nothing of trials or groups. Admins and test addresses (`NOT_A_PERSON`) are
   left out. The list is a plain textarea, so a hand-pasted list works too.

@@ -27,6 +27,11 @@ from datetime import datetime, timedelta, timezone
 
 SEGMENTS = ("subscribers", "trial", "lapsed-paid", "lapsed-trial")
 
+# Why a subscriber has access, in the function's order. `mirror` is a store
+# purchase only the phone has reported, so the least reliable: a cancelled
+# subscriber can still read as subscribed there until the app next checks.
+SUBSCRIBER_TYPES = ("stripe", "store", "mirror", "group", "lifetime", "complimentary", "admin")
+
 STRIPE_ENTITLING = ("active", "trialing", "past_due")
 STORE_ENTITLING = ("active", "grace", "cancelled")
 
@@ -146,9 +151,17 @@ def classify(client):
             when = _when(value)
             return when is not None and when > now
 
+        # The reason is the subscriber type when the segment is subscribers.
+        # The function treats the three flags alike as "exempt"; for email they
+        # are different people: a lifetime buyer has paid, a complimentary
+        # account has not, and an admin is us.
         reason, segment = None, "subscribers"
-        if admin or _truthy(meta.get("subscription_exempt")) or _truthy(meta.get("lifetime_subscription")):
-            reason = "exempt"
+        if admin:
+            reason = "admin"
+        elif _truthy(meta.get("lifetime_subscription")):
+            reason = "lifetime"
+        elif _truthy(meta.get("subscription_exempt")):
+            reason = "complimentary"
         elif stripe and stripe.get("status") in STRIPE_ENTITLING:
             reason = "stripe"
         elif store and store.get("status") in STORE_ENTITLING and future(store.get("expires_at")):
@@ -183,9 +196,14 @@ def classify(client):
 
 
 def audience(client, include_admins=False):
-    """Addresses per segment, with admins and test accounts taken off."""
+    """Addresses per segment, and subscribers again per type.
+
+    Admins and test accounts are taken off, unless admins are asked for, when
+    they appear as their own subscriber type so they can be ticked on their
+    own for a test send.
+    """
     segments = {s: [] for s in SEGMENTS}
-    reasons = {s: {} for s in SEGMENTS}
+    subscriber_types = {t: [] for t in SUBSCRIBER_TYPES}
     left_out = {"admin": 0, "test": 0, "no_address": 0}
     for row in classify(client):
         if row["admin"] and not include_admins:
@@ -198,12 +216,12 @@ def audience(client, include_admins=False):
             left_out["test"] += 1
             continue
         segments[row["segment"]].append(row["email"])
-        counts = reasons[row["segment"]]
-        counts[row["reason"]] = counts.get(row["reason"], 0) + 1
-    for addresses in segments.values():
+        if row["segment"] == "subscribers":
+            subscriber_types[row["reason"]].append(row["email"])
+    for addresses in (*segments.values(), *subscriber_types.values()):
         addresses.sort()
-    return {"segments": segments, "reasons": reasons, "left_out": left_out,
-            "read_at": datetime.now(timezone.utc).isoformat()}
+    return {"segments": segments, "subscriber_types": subscriber_types,
+            "left_out": left_out, "read_at": datetime.now(timezone.utc).isoformat()}
 
 
 def campaign_read(client, emails, since, until=None):
