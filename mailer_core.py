@@ -1,11 +1,8 @@
 """Sending logic for the portal's Email page.
 
-Brought over on 30 Oct 2026 from the website repo
-(`E:/code/visit-history-web/scripts/mailer_core.py`), where it served a
-tkinter mailer and a command line. The portal is the email tool now; while
-the website's copy still exists, a fix to one must be made to the other,
-because the copy that drifted would be the one used at the moment it
-mattered.
+Moved here on 30 Oct 2026 from the website repo, where it served a tkinter
+mailer and a command line; both were deleted once this page replaced them.
+This is the only copy.
 
 Standard library only. This is run a handful of times a year and an install
 step is one more thing to go wrong then.

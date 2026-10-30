@@ -228,7 +228,8 @@ the button is disabled rather than failing a minute into a search.
 
 Campaign email to users, done here so nothing has to be run from a terminal.
 Moved from the website repo on 30 Oct 2026, where it was a tkinter app
-(`scripts/bulk_mailer.py`) plus two Node scripts. Four tabs:
+(`scripts/bulk_mailer.py`), a command line and two Node scripts, all deleted
+there since. Four tabs:
 
 - **Recipients.** The four groups come from `audience.py`, which puts every
   account in exactly one of `subscribers`, `trial`, `lapsed-paid` and
@@ -263,8 +264,8 @@ cleared, and the page warns when it is missing or differs from the backup at
 `E:\backups\visit-history-mailer\unsubscribed.txt`. The SMTP password is never
 saved: typed each session, or `IONOS_SMTP_PASSWORD`.
 
-`mailer_core.py` is a copy of the website repo's, made when this page was
-built. While that copy exists, a fix to one must go into the other.
+`mailer_core.py` came from the website repo, whose mailer scripts were
+deleted on 30 Oct 2026 once this page replaced them. It is the only copy.
 
 ## Output targets
 
