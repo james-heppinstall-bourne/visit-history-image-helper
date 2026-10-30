@@ -32,7 +32,12 @@ Pywebview desktop app for cropping images to a fixed aspect ratio with auto-enha
   (production only). Precedence follows the website's `get_my_entitlement()`:
   Stripe, then the verified store row, then the mirror, and anyone active in
   any source is active. A new place a subscription can be recorded needs
-  adding here too. Lifetime granted by hand in `app_metadata` is not counted
+  adding here too. So is a lifetime that exists only as
+  `app_metadata.lifetime_subscription`: the two sold through the Stripe
+  Payment Link before the web checkout (Jul 2026) left no `stripe_payments`
+  row. Their date is `app_metadata.lifetime_purchased_at`, copied by hand
+  from Stripe; set it whenever the flag is set by hand, or the row stays off
+  the chart
 - `web/map.html` + `web/map.js` — Place Map
 - `web/email.html` + `web/email.js` — Email: choose a group of users, write, send, read the result. The Python side is `email_api.py` (mixed into `Api`), `audience.py` and `mailer_core.py`; see **Email** below
 - `web/style.css` — Dark theme styles for every page

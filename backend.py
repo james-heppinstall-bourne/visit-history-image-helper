@@ -13,7 +13,7 @@ import webview
 from PIL import Image, ImageEnhance, ImageOps
 
 import finder
-from audience import _list_users, _truthy
+from audience import _list_users, _truthy, _when
 from email_api import EmailApi
 
 try:
@@ -1637,10 +1637,13 @@ class Api(EmailApi):
         # A lifetime sold before the web checkout existed (a Stripe Payment
         # Link, from 12 Apr to 6 Sep 2026) left no stripe_payments row: it was
         # activated by setting the flag by hand, and the flag is the only record.
-        # No purchase date either, so it stays off the chart unless the mirror
-        # carries one.
+        # Its date, copied from the Stripe dashboard, goes in
+        # lifetime_purchased_at beside it; without one the row stays off the chart.
         for user in _list_users(client):
-            if _truthy(user["app_metadata"].get("lifetime_subscription")):
+            meta = user["app_metadata"]
+            if _truthy(meta.get("lifetime_subscription")):
+                bought = _when(meta.get("lifetime_purchased_at"))
+                bought = bought.astimezone(timezone.utc).isoformat() if bought else None
                 put({
                     "user_id": user["id"],
                     "is_subscribed": True,
@@ -1648,9 +1651,9 @@ class Api(EmailApi):
                     "subscription_type": "lifetime",
                     "expires_at": None,
                     "platform": "Web (set by hand)",
-                    "first_subscribed_at": None,
+                    "first_subscribed_at": bought,
                     "last_checked_at": None,
-                    "updated_at": None,
+                    "updated_at": bought,
                 }, rank=0)
 
         rows = list(merged.values())
