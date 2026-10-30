@@ -13,6 +13,7 @@ import webview
 from PIL import Image, ImageEnhance, ImageOps
 
 import finder
+from audience import _list_users, _truthy
 from email_api import EmailApi
 
 try:
@@ -1528,7 +1529,8 @@ class Api(EmailApi):
         public.subscriptions is only what the phone reports about a store
         purchase. A web purchase never reaches it (the app leaves that user's
         row is_subscribed = false, because the phone holds no receipt): it is
-        in stripe_subscriptions, a web lifetime is in stripe_payments, and
+        in stripe_subscriptions, a web lifetime is in stripe_payments (or only
+        in the account's lifetime_subscription flag, if sold before checkout), and
         store notifications verified server-side are in store_subscriptions.
         Reading the mirror alone left every web subscriber off the dashboard
         and the list.
@@ -1631,6 +1633,25 @@ class Api(EmailApi):
                 "last_checked_at": None,
                 "updated_at": row.get("created_at"),
             }, rank=0)
+
+        # A lifetime sold before the web checkout existed (a Stripe Payment
+        # Link, from 12 Apr to 6 Sep 2026) left no stripe_payments row: it was
+        # activated by setting the flag by hand, and the flag is the only record.
+        # No purchase date either, so it stays off the chart unless the mirror
+        # carries one.
+        for user in _list_users(client):
+            if _truthy(user["app_metadata"].get("lifetime_subscription")):
+                put({
+                    "user_id": user["id"],
+                    "is_subscribed": True,
+                    "product_id": "lifetime",
+                    "subscription_type": "lifetime",
+                    "expires_at": None,
+                    "platform": "Web (set by hand)",
+                    "first_subscribed_at": None,
+                    "last_checked_at": None,
+                    "updated_at": None,
+                }, rank=0)
 
         rows = list(merged.values())
         for row in rows:
