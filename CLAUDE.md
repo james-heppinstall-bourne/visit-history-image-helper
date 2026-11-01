@@ -58,6 +58,17 @@ Both compose the same outputs through the same backend helpers (`apply_auto_enha
   Panels take a source from the file dialog, a paste, a drop, the other panel
   (`copy_slot_image`), or the place's stored image (`load_slot_image_from_url`).
 
+Place Images panels also carry **adjustment buttons**: Brightness, Contrast,
+Colour and Warmth, each − / + in whole steps up to ±5, and Reset. They apply on
+top of Enhance, and the step counts go to `save_slot_crop()` as `adjust`. The
+canvas preview is computed in the browser (`adjustedBitmap()` in
+`place-images.js`) and the save in Python (`apply_adjustments()` in
+`backend.py`), so the two hold the same constants, order and rounding: per-channel
+tables for brightness (a midtone curve, so highlights don't blow), contrast and
+warmth, then Colour as Pillow's `ImageEnhance.Color`. Measured against each other
+on random pixels they agree exactly, bar the odd value off by 1/255. Change one,
+change the other. The single-image Image Helper does not have them.
+
 The placebar's **Delete place** removes the `places` row after a confirm dialog.
 `Api.delete_place` refuses while any `visits` or `wishlists` row points at the
 place (`PLACE_REFERENCES`) — whatever those foreign keys do on delete, it would

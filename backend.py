@@ -1,6 +1,7 @@
 import base64
 import io
 import json
+import math
 import os
 import re
 import threading
@@ -83,6 +84,59 @@ def apply_auto_enhance(img):
     img = ImageEnhance.Sharpness(img).enhance(1.3)
     img = ImageEnhance.Color(img).enhance(1.1)
     return img
+
+
+# Manual adjustments on Place Images: each is a whole number of steps either way,
+# applied on top of auto-enhance. ADJUSTMENTS / adjustmentLuts() / adjustedBitmap()
+# in place-images.js do the same arithmetic in the same order with the same
+# rounding, so the canvas preview is what save_slot_crop() writes. Change both.
+ADJUST_KEYS = ("brightness", "contrast", "colour", "warmth")
+ADJUST_LIMIT = 5
+
+
+def _adjust_steps(adjust):
+    steps = {}
+    for key in ADJUST_KEYS:
+        try:
+            n = int((adjust or {}).get(key, 0))
+        except (TypeError, ValueError):
+            n = 0
+        steps[key] = max(-ADJUST_LIMIT, min(ADJUST_LIMIT, n))
+    return steps
+
+
+def adjustment_luts(steps):
+    """One 768-entry table for Image.point(): brightness as a midtone curve (so
+    whites stay white and blacks stay black, rather than the sky blowing out),
+    then contrast about mid-grey, then warmth as a red/blue balance."""
+    exponent = 0.88 ** steps["brightness"]
+    contrast = 1 + 0.08 * steps["contrast"]
+    warmth = 0.04 * steps["warmth"]
+    luts = []
+    for factor in (1 + warmth, 1.0, 1 - warmth):
+        for v in range(256):
+            x = 255 * (v / 255) ** exponent
+            x = (x - 127.5) * contrast + 127.5
+            x = min(255.0, max(0.0, x * factor))
+            luts.append(int(math.floor(x + 0.5)))
+    return luts
+
+
+def apply_adjustments(img, adjust):
+    steps = _adjust_steps(adjust)
+    if not any(steps.values()):
+        return img
+    if img.mode not in ("RGB", "RGBA"):
+        img = img.convert("RGBA" if "transparency" in img.info or "A" in img.getbands() else "RGB")
+    alpha = img.getchannel("A") if img.mode == "RGBA" else None
+    rgb = img.convert("RGB")
+    if steps["brightness"] or steps["contrast"] or steps["warmth"]:
+        rgb = rgb.point(adjustment_luts(steps))
+    if steps["colour"]:
+        rgb = ImageEnhance.Color(rgb).enhance(1 + 0.1 * steps["colour"])
+    if alpha is not None:
+        rgb.putalpha(alpha)
+    return rgb
 
 
 def render_crop(img, crop_box, img_transform, rotation, credit, target_w, target_h):
@@ -656,8 +710,9 @@ class Api(EmailApi):
 
     def save_slot_crop(self, slot, canvas_width, canvas_height, crop_box,
                        img_transform, enhanced, filename="", rotation=0,
-                       credit="", place_id=None, target=None):
-        """Same composition as save_crop(), against the panel's own source."""
+                       credit="", place_id=None, target=None, adjust=None):
+        """Same composition as save_crop(), against the panel's own source.
+        `adjust` is the panel's step counts, applied after auto-enhance."""
         img = self._slot_image(slot)
         if img is None:
             return {"error": "No image loaded"}
@@ -668,6 +723,7 @@ class Api(EmailApi):
             img = img.copy()
             if enhanced:
                 img = apply_auto_enhance(img)
+            img = apply_adjustments(img, adjust)
 
             cropped = render_crop(
                 img, crop_box, img_transform, rotation, credit,

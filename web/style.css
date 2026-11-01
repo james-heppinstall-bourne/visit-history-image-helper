@@ -3314,6 +3314,7 @@ body {
 }
 
 .pi-tools,
+.pi-adjust,
 .pi-credit {
   display: flex;
   align-items: center;
@@ -3324,8 +3325,42 @@ body {
   flex-shrink: 0;
 }
 
+.pi-adjust,
 .pi-credit {
   padding-top: 0;
+}
+
+.pi-adjust {
+  column-gap: 12px;
+}
+
+/* One adjustment: its name, − and + either side of the step count. */
+.pi-adj {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.pi-adj-label {
+  color: #aaa;
+  font-size: 12px;
+  margin-right: 2px;
+}
+
+.pi-adj-value {
+  min-width: 22px;
+  text-align: center;
+  color: #888;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pi-adj-value.changed {
+  color: #eee;
+}
+
+.pi-panel .pi-adj button {
+  padding: 3px 8px;
 }
 
 .pi-panel button {

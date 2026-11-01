@@ -39,6 +39,84 @@ const EDITOR_ACTIONS = [
   "apply-credit",
 ];
 
+// Manual adjustments, as whole steps either way of zero. The canvas shows them
+// by redrawing the source through adjustedBitmap(); the save sends the step
+// counts and apply_adjustments() in backend.py does the same arithmetic to the
+// full image. Keep the two in step, constants and rounding both.
+const ADJUSTMENTS = [
+  { key: "brightness", label: "Brightness", less: "Darker", more: "Brighter" },
+  { key: "contrast", label: "Contrast", less: "Less contrast", more: "More contrast" },
+  { key: "colour", label: "Colour", less: "Less colour", more: "More colour" },
+  { key: "warmth", label: "Warmth", less: "Cooler", more: "Warmer" },
+];
+const ADJUST_LIMIT = 5;
+
+function neutralAdjust() {
+  return Object.fromEntries(ADJUSTMENTS.map((a) => [a.key, 0]));
+}
+
+function isNeutral(adjust) {
+  return ADJUSTMENTS.every((a) => !adjust[a.key]);
+}
+
+/** Per-channel tables, as adjustment_luts(): midtone curve, contrast, warmth. */
+function adjustmentLuts(adjust) {
+  const exponent = Math.pow(0.88, adjust.brightness);
+  const contrast = 1 + 0.08 * adjust.contrast;
+  const warmth = 0.04 * adjust.warmth;
+  return [1 + warmth, 1, 1 - warmth].map((factor) => {
+    const lut = new Uint8Array(256);
+    for (let v = 0; v < 256; v++) {
+      let x = 255 * Math.pow(v / 255, exponent);
+      x = (x - 127.5) * contrast + 127.5;
+      x = Math.min(255, Math.max(0, x * factor));
+      lut[v] = Math.floor(x + 0.5);
+    }
+    return lut;
+  });
+}
+
+/**
+ * The source redrawn with the adjustments, at its own size so the transform
+ * still applies. Colour is ImageEnhance.Color: a blend away from Pillow's
+ * RGB→L grey, truncated and clipped as Image.blend does.
+ */
+function adjustedBitmap(source, adjust) {
+  const canvas = document.createElement("canvas");
+  canvas.width = source.width;
+  canvas.height = source.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(source, 0, 0);
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const d = pixels.data;
+  const [lr, lg, lb] = adjustmentLuts(adjust);
+  const s = 1 + 0.1 * adjust.colour;
+  const blend = (grey, v) => {
+    const t = grey + s * (v - grey);
+    return t <= 0 ? 0 : t >= 255 ? 255 : Math.floor(t);
+  };
+  for (let i = 0; i < d.length; i += 4) {
+    let r = lr[d[i]];
+    let g = lg[d[i + 1]];
+    let b = lb[d[i + 2]];
+    if (s !== 1) {
+      const grey = (r * 19595 + g * 38470 + b * 7471 + 0x8000) >> 16;
+      r = blend(grey, r);
+      g = blend(grey, g);
+      b = blend(grey, b);
+    }
+    d[i] = r;
+    d[i + 1] = g;
+    d[i + 2] = b;
+  }
+  ctx.putImageData(pixels, 0, 0);
+  return canvas;
+}
+
+function formatStep(n) {
+  return n > 0 ? "+" + n : n < 0 ? "−" + -n : "0";
+}
+
 const FILTERS = {
   all: () => true,
   "no-card": (p) => !p.image_path,
@@ -133,7 +211,11 @@ class Panel {
     this.attrib = this.q("attrib");
     this.attribText = this.q("attrib-text");
 
+    // baseImg is the original or enhanced bitmap; img is what is drawn, which is
+    // baseImg itself or a canvas of it with the adjustments applied.
     this.img = null;
+    this.baseImg = null;
+    this.adjust = neutralAdjust();
     this.transform = { x: 0, y: 0, scale: 1, rotation: 0 };
     this.crop = { x: 0, y: 0, width: 0, height: 0 };
     this.originalDataUrl = null;
@@ -151,9 +233,75 @@ class Panel {
     this.findSeen = 0;
     this.findTimer = null;
 
+    this.buildAdjust();
     this.bindTools();
     this.bindCanvas();
     this.observeStage();
+  }
+
+  /** The adjustment row: name, −, step count, + for each, then Reset. */
+  buildAdjust() {
+    const row = this.q("adjust");
+    this.adjustControls = {};
+    const button = (text, title, fn) => {
+      const btn = document.createElement("button");
+      btn.textContent = text;
+      btn.title = title;
+      btn.disabled = true;
+      btn.addEventListener("click", fn);
+      return btn;
+    };
+    for (const spec of ADJUSTMENTS) {
+      const group = document.createElement("span");
+      group.className = "pi-adj";
+      const label = document.createElement("span");
+      label.className = "pi-adj-label";
+      label.textContent = spec.label;
+      const value = document.createElement("span");
+      value.className = "pi-adj-value";
+      value.textContent = "0";
+      const down = button("−", spec.less, () => this.stepAdjust(spec, -1));
+      const up = button("+", spec.more, () => this.stepAdjust(spec, 1));
+      group.append(label, down, value, up);
+      row.appendChild(group);
+      this.adjustControls[spec.key] = { down, up, value };
+    }
+    this.adjustReset = button("Reset", "Undo every adjustment", () => {
+      this.adjust = neutralAdjust();
+      this.refreshAdjusted();
+      setStatus(`${this.spec.label}: adjustments reset`);
+    });
+    row.appendChild(this.adjustReset);
+  }
+
+  stepAdjust(spec, delta) {
+    const next = this.adjust[spec.key] + delta;
+    if (!this.img || Math.abs(next) > ADJUST_LIMIT) return;
+    this.adjust[spec.key] = next;
+    this.refreshAdjusted();
+    setStatus(`${this.spec.label}: ${spec.label.toLowerCase()} ${formatStep(next)}`);
+  }
+
+  /** Redraws from baseImg with the current adjustments, keeping the framing. */
+  refreshAdjusted() {
+    if (this.baseImg) {
+      this.img = isNeutral(this.adjust) ? this.baseImg : adjustedBitmap(this.baseImg, this.adjust);
+    }
+    this.draw();
+    this.renderAdjust();
+  }
+
+  renderAdjust() {
+    const live = !!this.img && !this.searching;
+    for (const spec of ADJUSTMENTS) {
+      const n = this.adjust[spec.key];
+      const c = this.adjustControls[spec.key];
+      c.value.textContent = formatStep(n);
+      c.value.classList.toggle("changed", n !== 0);
+      c.down.disabled = !live || n <= -ADJUST_LIMIT;
+      c.up.disabled = !live || n >= ADJUST_LIMIT;
+    }
+    this.adjustReset.disabled = !live || isNeutral(this.adjust);
   }
 
   /** Builds the credit line from the fields and puts it on the canvas. */
@@ -381,7 +529,9 @@ class Panel {
     this.sourceName = result.filename || "";
     this.saved = false;
     this.record = result.record || null;
-    this.img = await loadImage(result.data_url);
+    this.adjust = neutralAdjust();
+    this.baseImg = await loadImage(result.data_url);
+    this.img = this.baseImg;
     // render() first: it decides whether the attribution row is shown, which
     // changes the stage height the crop box and canvas are measured against.
     this.render();
@@ -393,6 +543,8 @@ class Panel {
 
   async clearSource() {
     this.img = null;
+    this.baseImg = null;
+    this.adjust = neutralAdjust();
     this.originalDataUrl = null;
     this.enhancedDataUrl = null;
     this.enhanced = false;
@@ -461,6 +613,7 @@ class Panel {
     // shown, and nothing at all while a search is running.
     const live = editing && !this.searching;
     for (const action of EDITOR_ACTIONS) this.button(action).disabled = !live;
+    this.renderAdjust();
     // Copy → reads the other panel's state, so both buttons are refreshed
     // whenever either panel re-renders.
     for (const panel of Object.values(panels)) panel.renderCopyButton();
@@ -560,11 +713,12 @@ class Panel {
         }
         this.enhancedDataUrl = result.data_url;
       }
-      // Keep the composition when swapping the preview bitmap.
+      // Keep the composition when swapping the preview bitmap. Adjustments
+      // carry over, applied on top of whichever one is now the base.
       const keep = { ...this.transform };
-      this.img = await loadImage(this.enhanced ? this.enhancedDataUrl : this.originalDataUrl);
+      this.baseImg = await loadImage(this.enhanced ? this.enhancedDataUrl : this.originalDataUrl);
       this.transform = keep;
-      this.draw();
+      this.refreshAdjusted();
       setStatus(`${this.spec.label}: ${this.enhanced ? "enhanced" : "original"} view`);
     });
 
@@ -696,7 +850,8 @@ class Panel {
       this.transform.rotation,
       this.credit,
       selectedPlace.id,
-      this.slot
+      this.slot,
+      this.adjust
     );
     if (result.error) return setStatus(`Save ${this.spec.label} error: ${result.error}`);
 
