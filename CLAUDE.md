@@ -31,7 +31,15 @@ Pywebview desktop app for cropping images to a fixed aspect ratio with auto-enha
   `stripe_payments` where `kind = 'lifetime'`, and `store_subscriptions`
   (production only). Precedence follows the website's `get_my_entitlement()`:
   Stripe, then the verified store row, then the mirror, and anyone active in
-  any source is active. A new place a subscription can be recorded needs
+  any source is active, **except that the mirror never outranks a production
+  store row**: the phone goes on reporting a refunded or expired purchase
+  until the app next launches (since 12 Nov 2026). **Test purchases are left
+  out**: the mirror of a user whose only store rows are sandbox (a Play
+  licence tester), and every account with `app_metadata.test_account` set.
+  That flag is on James's test accounts (claude@test.com, expired@test.com,
+  testuser@googleplay.com, testuser@appstore.com and
+  james.heppinstall@googlemail.com). **Never on james@visithistory.online**,
+  which is his real account. A new place a subscription can be recorded needs
   adding here too. So is a lifetime that exists only as
   `app_metadata.lifetime_subscription`: the two sold through the Stripe
   Payment Link before the web checkout (Jul 2026) left no `stripe_payments`

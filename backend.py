@@ -1592,14 +1592,29 @@ class Api(EmailApi):
         and the list.
 
         Precedence follows get_my_entitlement(): Stripe, then the verified
-        store row, then the mirror. A user is active if any source says so.
+        store row, then the mirror. A user is active if any source says so,
+        except that the mirror is never believed over a verified store row.
+
+        Test purchases are left out. A Play licence tester's purchase is
+        reported by the phone like any other, so the mirror cannot tell it
+        from a real one; the store says so (environment = 'sandbox'), and an
+        account set to app_metadata.test_account is left out whatever it holds.
         """
         now = datetime.now(timezone.utc).isoformat()
         merged = {}
+        users = _list_users(client)
+        test_ids = {u["id"] for u in users if _truthy(u["app_metadata"].get("test_account"))}
+
+        store_rows = self._fetch_all(
+            client, "store_subscriptions",
+            "user_id, provider, product_id, status, expires_at, updated_at, environment",
+        )
+        verified_ids = {r["user_id"] for r in store_rows if r.get("environment") == "production"}
+        sandbox_ids = {r["user_id"] for r in store_rows if r.get("environment") != "production"}
 
         def put(row, rank):
             user_id = row["user_id"]
-            if not user_id:
+            if not user_id or user_id in test_ids:
                 return
             current = merged.get(user_id)
             if current is None:
@@ -1619,10 +1634,19 @@ class Api(EmailApi):
             "user_id, is_subscribed, product_id, expires_at, platform,"
             " first_subscribed_at, last_checked_at, updated_at",
         ):
+            user_id = row.get("user_id")
+            # Only a licence tester has a sandbox row, so the phone's report
+            # of a purchase is the test one
+            if user_id in sandbox_ids and user_id not in verified_ids:
+                continue
             product_id = row.get("product_id") or ""
             put({
-                "user_id": row.get("user_id"),
-                "is_subscribed": bool(row.get("is_subscribed")),
+                "user_id": user_id,
+                # The store's own word outranks the phone's, as in
+                # get_my_entitlement(): a refunded or expired purchase stays
+                # true here until the app next launches. The row still
+                # carries first_subscribed_at, which the store row lacks.
+                "is_subscribed": bool(row.get("is_subscribed")) and user_id not in verified_ids,
                 "product_id": product_id,
                 "subscription_type": self._subscription_type(product_id),
                 "expires_at": row.get("expires_at"),
@@ -1633,11 +1657,9 @@ class Api(EmailApi):
             }, rank=3)
 
         # Production only: a sandbox row never entitles anyone in production
-        for row in self._fetch_all(
-            client, "store_subscriptions",
-            "user_id, provider, product_id, status, expires_at, updated_at",
-            lambda q: q.eq("environment", "production"),
-        ):
+        for row in store_rows:
+            if row.get("environment") != "production":
+                continue
             product_id = row.get("product_id") or ""
             expires_at = row.get("expires_at")
             put({
@@ -1695,7 +1717,7 @@ class Api(EmailApi):
         # activated by setting the flag by hand, and the flag is the only record.
         # Its date, copied from the Stripe dashboard, goes in
         # lifetime_purchased_at beside it; without one the row stays off the chart.
-        for user in _list_users(client):
+        for user in users:
             meta = user["app_metadata"]
             if _truthy(meta.get("lifetime_subscription")):
                 bought = _when(meta.get("lifetime_purchased_at"))
