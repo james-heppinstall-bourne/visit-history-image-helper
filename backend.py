@@ -1607,7 +1607,8 @@ class Api(EmailApi):
 
         store_rows = self._fetch_all(
             client, "store_subscriptions",
-            "user_id, provider, product_id, status, expires_at, updated_at, environment",
+            "user_id, provider, product_id, status, auto_renewing, expires_at, updated_at,"
+            " environment",
         )
         verified_ids = {r["user_id"] for r in store_rows if r.get("environment") == "production"}
         sandbox_ids = {r["user_id"] for r in store_rows if r.get("environment") != "production"}
@@ -1662,6 +1663,13 @@ class Api(EmailApi):
                 continue
             product_id = row.get("product_id") or ""
             expires_at = row.get("expires_at")
+            platform = {"apple": "iOS", "google": "Android"}.get(row.get("provider"), "")
+            # Cancelled but paid up, labelled the way a Stripe one is. The
+            # date beside it is then when access ends, not the next renewal
+            if row.get("status") in self._STORE_ENTITLING and (
+                row.get("status") == "cancelled" or row.get("auto_renewing") is False
+            ):
+                platform += " (cancelling)"
             put({
                 "user_id": row.get("user_id"),
                 "is_subscribed": row.get("status") in self._STORE_ENTITLING
@@ -1669,7 +1677,7 @@ class Api(EmailApi):
                 "product_id": product_id,
                 "subscription_type": self._subscription_type(product_id),
                 "expires_at": expires_at,
-                "platform": {"apple": "iOS", "google": "Android"}.get(row.get("provider"), ""),
+                "platform": platform,
                 "first_subscribed_at": None,
                 "last_checked_at": None,
                 "updated_at": row.get("updated_at"),
